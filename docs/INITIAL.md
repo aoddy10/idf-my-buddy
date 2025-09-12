@@ -5,6 +5,7 @@ AI Buddy is a multimodal AI assistant designed to support users in navigation, r
 ## EXAMPLES:
 
 See the `examples/` folder for demonstration scripts and modules. Expected examples include CLI demos showcasing core functionalities, feature-specific modules such as navigation and restaurant recommendation workflows, and best practice implementations illustrating integration patterns and usage guidelines.
+`
 
 ## DOCUMENTATION:
 
