@@ -66,7 +66,7 @@ class TTSService(LoggerMixin):
                 self._setup_pyttsx3()
 
             # Setup SpeechBrain (local, high quality)
-            if SPEECHBRAIN_AVAILABLE and settings.speechbrain_enabled:
+            if SPEECHBRAIN_AVAILABLE and getattr(settings, 'speechbrain_enabled', True):
                 self._setup_speechbrain()
 
             # Setup OpenAI TTS (cloud, high quality)
