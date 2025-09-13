@@ -6,7 +6,7 @@ detection (VAD), noise reduction, normalization, and chunking for streaming.
 
 import asyncio
 import logging
-from collections.abc import AsyncIterator
+from typing import AsyncIterator
 
 import numpy as np
 
