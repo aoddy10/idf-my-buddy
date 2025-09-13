@@ -1,0 +1,311 @@
+# Docker Compose configuration for IDF My Buddy Travel Assistant
+# Supports development, testing, and production environments
+
+version: "3.8"
+
+# Shared networks
+networks:
+    app-network:
+        driver: bridge
+    db-network:
+        driver: bridge
+
+# Shared volumes
+volumes:
+    postgres_data:
+        driver: local
+    redis_data:
+        driver: local
+    uploads_data:
+        driver: local
+
+services:
+    # PostgreSQL Database
+    postgres:
+        image: postgres:15-alpine
+        environment:
+            POSTGRES_DB: ${POSTGRES_DB:-idf_buddy}
+            POSTGRES_USER: ${POSTGRES_USER:-postgres}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+            POSTGRES_HOST_AUTH_METHOD: trust
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+            - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+        ports:
+            - "${POSTGRES_PORT:-5432}:5432"
+        networks:
+            - db-network
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-idf_buddy}",
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 30s
+        restart: unless-stopped
+
+    # Redis Cache
+    redis:
+        image: redis:7-alpine
+        command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_password}
+        environment:
+            REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_password}
+        volumes:
+            - redis_data:/data
+        ports:
+            - "${REDIS_PORT:-6379}:6379"
+        networks:
+            - app-network
+        healthcheck:
+            test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+            interval: 10s
+            timeout: 5s
+            retries: 3
+            start_period: 30s
+        restart: unless-stopped
+
+    # Application - Development
+    app-dev:
+        build:
+            context: .
+            dockerfile: Dockerfile
+            target: development
+        environment:
+            - ENVIRONMENT=development
+            - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-idf_buddy}
+            - REDIS_URL=redis://:${REDIS_PASSWORD:-redis_password}@redis:6379/0
+            - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
+            - ALGORITHM=${ALGORITHM:-HS256}
+            - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+            - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
+            - OPENWEATHER_API_KEY=${OPENWEATHER_API_KEY}
+            - OPENAI_API_KEY=${OPENAI_API_KEY}
+            - AZURE_SPEECH_KEY=${AZURE_SPEECH_KEY}
+            - AZURE_SPEECH_REGION=${AZURE_SPEECH_REGION}
+            - LOG_LEVEL=${LOG_LEVEL:-INFO}
+            - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost:3000","http://localhost:8080"]}
+        volumes:
+            - .:/app
+            - uploads_data:/app/uploads
+        ports:
+            - "${APP_PORT:-8000}:8000"
+        networks:
+            - app-network
+            - db-network
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 60s
+        restart: unless-stopped
+        profiles:
+            - dev
+
+    # Application - Production
+    app-prod:
+        build:
+            context: .
+            dockerfile: Dockerfile
+            target: production
+        environment:
+            - ENVIRONMENT=production
+            - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-idf_buddy}
+            - REDIS_URL=redis://:${REDIS_PASSWORD:-redis_password}@redis:6379/0
+            - SECRET_KEY=${SECRET_KEY}
+            - ALGORITHM=${ALGORITHM:-HS256}
+            - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+            - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
+            - OPENWEATHER_API_KEY=${OPENWEATHER_API_KEY}
+            - OPENAI_API_KEY=${OPENAI_API_KEY}
+            - AZURE_SPEECH_KEY=${AZURE_SPEECH_KEY}
+            - AZURE_SPEECH_REGION=${AZURE_SPEECH_REGION}
+            - LOG_LEVEL=${LOG_LEVEL:-WARNING}
+            - CORS_ORIGINS=${CORS_ORIGINS:-[]}
+        volumes:
+            - uploads_data:/app/uploads
+        ports:
+            - "${APP_PORT:-8000}:8000"
+        networks:
+            - app-network
+            - db-network
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 60s
+        restart: unless-stopped
+        deploy:
+            replicas: 2
+            resources:
+                limits:
+                    cpus: "1.0"
+                    memory: 1G
+                reservations:
+                    cpus: "0.5"
+                    memory: 512M
+        profiles:
+            - prod
+
+    # Testing Environment
+    app-test:
+        build:
+            context: .
+            dockerfile: Dockerfile
+            target: testing
+        environment:
+            - ENVIRONMENT=test
+            - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres-test:5432/${POSTGRES_DB:-idf_buddy_test}
+            - REDIS_URL=redis://:${REDIS_PASSWORD:-redis_password}@redis-test:6379/1
+            - SECRET_KEY=test-secret-key
+            - GOOGLE_MAPS_API_KEY=test-key
+            - OPENWEATHER_API_KEY=test-key
+            - OPENAI_API_KEY=test-key
+            - AZURE_SPEECH_KEY=test-key
+            - AZURE_SPEECH_REGION=test-region
+        volumes:
+            - .:/app
+            - ./test-results:/app/test-results
+        networks:
+            - app-network
+            - db-network
+        depends_on:
+            - postgres-test
+            - redis-test
+        profiles:
+            - test
+        command:
+            [
+                "poetry",
+                "run",
+                "pytest",
+                "-v",
+                "--cov=app",
+                "--cov-report=html:/app/test-results/coverage",
+                "--junit-xml=/app/test-results/junit.xml",
+            ]
+
+    # Test Database
+    postgres-test:
+        image: postgres:15-alpine
+        environment:
+            POSTGRES_DB: ${POSTGRES_DB:-idf_buddy_test}
+            POSTGRES_USER: ${POSTGRES_USER:-postgres}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+            POSTGRES_HOST_AUTH_METHOD: trust
+        tmpfs:
+            - /var/lib/postgresql/data
+        networks:
+            - db-network
+        profiles:
+            - test
+
+    # Test Redis
+    redis-test:
+        image: redis:7-alpine
+        command: redis-server --appendonly no --save ""
+        networks:
+            - app-network
+        profiles:
+            - test
+
+    # Nginx Reverse Proxy (Production)
+    nginx:
+        image: nginx:alpine
+        volumes:
+            - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+            - ./nginx/ssl:/etc/nginx/ssl:ro
+            - uploads_data:/var/www/uploads:ro
+        ports:
+            - "80:80"
+            - "443:443"
+        networks:
+            - app-network
+        depends_on:
+            - app-prod
+        profiles:
+            - prod
+        restart: unless-stopped
+
+    # Database Migration Service
+    migrate:
+        build:
+            context: .
+            dockerfile: Dockerfile
+            target: development
+        environment:
+            - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-idf_buddy}
+        networks:
+            - db-network
+        depends_on:
+            postgres:
+                condition: service_healthy
+        command: ["poetry", "run", "alembic", "upgrade", "head"]
+        profiles:
+            - migrate
+
+    # Database Backup Service
+    backup:
+        image: postgres:15-alpine
+        environment:
+            PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+        volumes:
+            - ./backups:/backups
+        networks:
+            - db-network
+        depends_on:
+            - postgres
+        profiles:
+            - backup
+        command: >
+            sh -c "
+              mkdir -p /backups &&
+              pg_dump -h postgres -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-idf_buddy} > /backups/backup_$$(date +%Y%m%d_%H%M%S).sql
+            "
+
+    # Monitoring - Prometheus (Production)
+    prometheus:
+        image: prom/prometheus:latest
+        volumes:
+            - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+            - ./monitoring/prometheus_data:/prometheus
+        ports:
+            - "9090:9090"
+        networks:
+            - app-network
+        profiles:
+            - monitoring
+        restart: unless-stopped
+
+    # Monitoring - Grafana (Production)
+    grafana:
+        image: grafana/grafana:latest
+        environment:
+            GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+        volumes:
+            - ./monitoring/grafana_data:/var/lib/grafana
+            - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+            - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+        ports:
+            - "3000:3000"
+        networks:
+            - app-network
+        depends_on:
+            - prometheus
+        profiles:
+            - monitoring
+        restart: unless-stopped
