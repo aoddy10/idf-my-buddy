@@ -220,7 +220,7 @@ class TestSettingsIntegration:
             DB_PORT=5432,
             DB_NAME="myapp",
             DB_USER="user",
-            DB_PASSWORD="pass123"
+            DB_PASSWORD="rvjae47q8a39rgbi"
         )
         assert "postgresql+asyncpg://" in settings.DATABASE_URL
         
