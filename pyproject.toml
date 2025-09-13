@@ -293,7 +293,6 @@ minversion = "7.0"
 addopts = [
     "--strict-markers",
     "--strict-config", 
-    "--disable-warnings",
     "--tb=short",
     "--cov=app",
     "--cov-report=html",
