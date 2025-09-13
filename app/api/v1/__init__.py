@@ -4,10 +4,10 @@ from fastapi import APIRouter
 
 # Import all v1 routers
 from .auth import router as auth_router
-from .navigation import router as navigation_router  
+from .navigation import router as navigation_router
 from .restaurant import router as restaurant_router
-from .shopping import router as shopping_router
 from .safety import router as safety_router
+from .shopping import router as shopping_router
 from .voice import router as voice_router
 
 # Create main v1 router

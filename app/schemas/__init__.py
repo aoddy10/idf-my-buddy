@@ -1,17 +1,17 @@
 """Package marker for schemas module."""
 
-from .common import *
 from .auth import *
+from .common import *
 from .navigation import *
 from .restaurant import *
-from .shopping import *
 from .safety import *
+from .shopping import *
 from .voice import *
 
 __all__ = [
     # Common schemas
     "BaseResponse",
-    "ErrorResponse", 
+    "ErrorResponse",
     "SuccessResponse",
     "PaginatedResponse",
     "Coordinates",
@@ -20,35 +20,35 @@ __all__ = [
     "LanguageCode",
     "TranslationRequest",
     "TranslationResponse",
-    
+
     # Auth schemas
     "UserRegistrationRequest",
     "UserLoginRequest",
     "LoginResponse",
     "UserProfileResponse",
-    
-    # Navigation schemas  
+
+    # Navigation schemas
     "NavigationRequest",
     "NavigationResponse",
     "Route",
     "POISearchRequest",
-    
+
     # Restaurant schemas
     "RestaurantSearchRequest",
-    "RestaurantSearchResponse", 
+    "RestaurantSearchResponse",
     "Restaurant",
     "MenuParsingRequest",
-    
+
     # Shopping schemas
     "ShopSearchRequest",
     "ProductSearchRequest",
     "PriceComparisonRequest",
-    
+
     # Safety schemas
     "EmergencyContactsRequest",
     "SafetyAlertsRequest",
     "EmergencyReportRequest",
-    
+
     # Voice schemas
     "SpeechRecognitionRequest",
     "TextToSpeechRequest",

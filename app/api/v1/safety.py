@@ -5,25 +5,30 @@ safety alerts, emergency reporting, and travel safety features.
 """
 
 import logging
-from typing import List, Optional
-from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import get_db_session, get_current_user_optional
+from app.core.deps import get_current_user_optional, get_db_session
 from app.core.logging import LoggerMixin
 from app.models.entities.user import User
+from app.schemas.common import Coordinates, LanguageCode
 from app.schemas.safety import (
-    EmergencyContactsRequest, EmergencyContactsResponse, EmergencyContact,
-    SafetyAlertsRequest, SafetyAlertsResponse, SafetyAlert,
-    EmergencyReportRequest, EmergencyReportResponse,
-    SafeZonesRequest, SafeZonesResponse, SafeZone,
-    PersonalSafetyRequest, PersonalSafetyResponse,
-    TravelDocumentsRequest, TravelDocumentsResponse,
-    EmergencyType, AlertType, SeverityLevel
+    EmergencyContactsRequest,
+    EmergencyContactsResponse,
+    EmergencyReportRequest,
+    EmergencyReportResponse,
+    EmergencyType,
+    PersonalSafetyRequest,
+    PersonalSafetyResponse,
+    SafetyAlertsRequest,
+    SafetyAlertsResponse,
+    SafeZonesRequest,
+    SafeZonesResponse,
+    SeverityLevel,
+    TravelDocumentsRequest,
+    TravelDocumentsResponse,
 )
-from app.schemas.common import BaseResponse, Coordinates, LanguageCode
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -31,7 +36,7 @@ router = APIRouter()
 
 class SafetyService(LoggerMixin):
     """Safety service with emergency and alert logic."""
-    
+
     def __init__(self):
         super().__init__()
 
@@ -47,7 +52,7 @@ safety_service = SafetyService()
 )
 async def get_emergency_contacts(
     request: EmergencyContactsRequest,
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User | None = Depends(get_current_user_optional)
 ):
     """Get emergency contacts for location."""
     # TODO: Implement emergency contacts lookup
@@ -66,9 +71,9 @@ async def get_emergency_contacts(
 async def get_nearby_emergency_contacts(
     lat: float = Query(..., description="Latitude", ge=-90, le=90),
     lng: float = Query(..., description="Longitude", ge=-180, le=180),
-    emergency_type: Optional[EmergencyType] = Query(None, description="Emergency type"),
+    emergency_type: EmergencyType | None = Query(None, description="Emergency type"),
     language: LanguageCode = Query(LanguageCode.EN, description="Response language"),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User | None = Depends(get_current_user_optional)
 ):
     """Get emergency contacts near coordinates."""
     # TODO: Implement nearby emergency contacts
@@ -89,7 +94,7 @@ async def get_nearby_emergency_contacts(
 )
 async def get_safety_alerts(
     alerts_request: SafetyAlertsRequest,
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User | None = Depends(get_current_user_optional)
 ):
     """Get safety alerts for location."""
     # TODO: Implement safety alerts lookup
@@ -111,7 +116,7 @@ async def get_nearby_safety_alerts(
     radius: int = Query(50000, description="Alert radius in meters"),
     min_severity: SeverityLevel = Query(SeverityLevel.LOW, description="Minimum severity"),
     language: LanguageCode = Query(LanguageCode.EN, description="Response language"),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User | None = Depends(get_current_user_optional)
 ):
     """Get safety alerts near coordinates."""
     # TODO: Implement nearby safety alerts
@@ -134,7 +139,7 @@ async def get_nearby_safety_alerts(
 async def report_emergency(
     emergency_report: EmergencyReportRequest,
     background_tasks: BackgroundTasks,
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User | None = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db_session)
 ):
     """Report an emergency situation."""
@@ -144,7 +149,7 @@ async def report_emergency(
         # 2. Send alerts to relevant authorities
         # 3. Provide immediate guidance
         # 4. Track report status
-        
+
         logger.critical(
             "Emergency reported",
             extra={
@@ -153,15 +158,15 @@ async def report_emergency(
                 "location": f"{emergency_report.location.latitude},{emergency_report.location.longitude}"
             }
         )
-        
+
         # Schedule background notification tasks
         # background_tasks.add_task(notify_emergency_services, emergency_report)
-        
+
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail="Emergency reporting not yet implemented"
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -180,7 +185,7 @@ async def report_emergency(
 )
 async def find_safe_zones(
     safe_zones_request: SafeZonesRequest,
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User | None = Depends(get_current_user_optional)
 ):
     """Find safe zones near location."""
     # TODO: Implement safe zone lookup
@@ -198,7 +203,7 @@ async def find_safe_zones(
 )
 async def assess_personal_safety(
     safety_request: PersonalSafetyRequest,
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User | None = Depends(get_current_user_optional)
 ):
     """Assess personal safety for current situation."""
     # TODO: Implement personal safety assessment
@@ -216,7 +221,7 @@ async def assess_personal_safety(
 )
 async def get_travel_document_requirements(
     documents_request: TravelDocumentsRequest,
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User | None = Depends(get_current_user_optional)
 ):
     """Get travel document requirements."""
     # TODO: Implement travel documents lookup

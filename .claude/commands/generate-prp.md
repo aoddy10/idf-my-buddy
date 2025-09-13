@@ -63,6 +63,9 @@ uv run pytest tests/ -v
 
 Save as: `PRPs/{feature-name}.md`
 
+Create Planning as: PLANNING.md
+Create Task List as: TASK.md
+
 ## Quality Checklist
 
 -   [ ] All necessary context included

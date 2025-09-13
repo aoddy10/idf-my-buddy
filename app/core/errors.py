@@ -4,7 +4,7 @@ This module defines application-specific exceptions and FastAPI error handlers
 to provide consistent error responses across all endpoints.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
@@ -12,16 +12,16 @@ from fastapi.responses import JSONResponse
 
 class MyBuddyException(Exception):
     """Base exception for My Buddy application errors."""
-    
+
     def __init__(
         self,
         message: str,
         error_code: str,
         status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
-        details: Optional[Dict[str, Any]] = None
+        details: dict[str, Any] | None = None
     ) -> None:
         """Initialize exception.
-        
+
         Args:
             message: Human-readable error message.
             error_code: Machine-readable error code.
@@ -37,20 +37,20 @@ class MyBuddyException(Exception):
 
 class ValidationError(MyBuddyException):
     """Raised when input validation fails."""
-    
+
     def __init__(
         self,
         message: str = "Invalid input data",
-        field: Optional[str] = None,
-        value: Optional[Any] = None,
-        details: Optional[Dict[str, Any]] = None
+        field: str | None = None,
+        value: Any | None = None,
+        details: dict[str, Any] | None = None
     ) -> None:
         error_details = details or {}
         if field:
             error_details["field"] = field
         if value is not None:
             error_details["value"] = str(value)
-        
+
         super().__init__(
             message=message,
             error_code="VALIDATION_ERROR",
@@ -61,17 +61,17 @@ class ValidationError(MyBuddyException):
 
 class ServiceUnavailableError(MyBuddyException):
     """Raised when an external service is unavailable."""
-    
+
     def __init__(
         self,
         service: str,
-        message: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None
+        message: str | None = None,
+        details: dict[str, Any] | None = None
     ) -> None:
         message = message or f"{service} service is currently unavailable"
         error_details = details or {}
         error_details["service"] = service
-        
+
         super().__init__(
             message=message,
             error_code="SERVICE_UNAVAILABLE",
@@ -82,13 +82,13 @@ class ServiceUnavailableError(MyBuddyException):
 
 class AIServiceError(MyBuddyException):
     """Raised when AI/ML service operations fail."""
-    
+
     def __init__(
         self,
         operation: str,
         model: str,
-        message: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None
+        message: str | None = None,
+        details: dict[str, Any] | None = None
     ) -> None:
         message = message or f"AI service error during {operation}"
         error_details = details or {}
@@ -96,7 +96,7 @@ class AIServiceError(MyBuddyException):
             "operation": operation,
             "model": model
         })
-        
+
         super().__init__(
             message=message,
             error_code="AI_SERVICE_ERROR",
@@ -107,11 +107,11 @@ class AIServiceError(MyBuddyException):
 
 class AuthenticationError(MyBuddyException):
     """Raised when authentication fails."""
-    
+
     def __init__(
         self,
         message: str = "Authentication failed",
-        details: Optional[Dict[str, Any]] = None
+        details: dict[str, Any] | None = None
     ) -> None:
         super().__init__(
             message=message,
@@ -123,17 +123,17 @@ class AuthenticationError(MyBuddyException):
 
 class AuthorizationError(MyBuddyException):
     """Raised when authorization fails."""
-    
+
     def __init__(
         self,
         message: str = "Insufficient permissions",
-        resource: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None
+        resource: str | None = None,
+        details: dict[str, Any] | None = None
     ) -> None:
         error_details = details or {}
         if resource:
             error_details["resource"] = resource
-        
+
         super().__init__(
             message=message,
             error_code="AUTHORIZATION_ERROR",
@@ -144,17 +144,17 @@ class AuthorizationError(MyBuddyException):
 
 class RateLimitError(MyBuddyException):
     """Raised when rate limiting is triggered."""
-    
+
     def __init__(
         self,
         message: str = "Rate limit exceeded",
-        retry_after: Optional[int] = None,
-        details: Optional[Dict[str, Any]] = None
+        retry_after: int | None = None,
+        details: dict[str, Any] | None = None
     ) -> None:
         error_details = details or {}
         if retry_after:
             error_details["retry_after"] = retry_after
-        
+
         super().__init__(
             message=message,
             error_code="RATE_LIMIT_EXCEEDED",
@@ -165,13 +165,13 @@ class RateLimitError(MyBuddyException):
 
 class ResourceNotFoundError(MyBuddyException):
     """Raised when a requested resource is not found."""
-    
+
     def __init__(
         self,
         resource_type: str,
         resource_id: str,
-        message: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None
+        message: str | None = None,
+        details: dict[str, Any] | None = None
     ) -> None:
         message = message or f"{resource_type} with ID {resource_id} not found"
         error_details = details or {}
@@ -179,7 +179,7 @@ class ResourceNotFoundError(MyBuddyException):
             "resource_type": resource_type,
             "resource_id": resource_id
         })
-        
+
         super().__init__(
             message=message,
             error_code="RESOURCE_NOT_FOUND",
@@ -191,25 +191,25 @@ class ResourceNotFoundError(MyBuddyException):
 # Error Handlers
 
 async def my_buddy_exception_handler(
-    request: Request, 
+    request: Request,
     exc: MyBuddyException
 ) -> JSONResponse:
     """Handle My Buddy application exceptions.
-    
+
     Args:
         request: FastAPI request object.
         exc: My Buddy exception instance.
-        
+
     Returns:
         JSONResponse: Formatted error response.
     """
     from app.core.logging import get_logger
-    
+
     logger = get_logger(__name__)
-    
+
     # Log error with correlation ID if available
     correlation_id = getattr(request.state, "correlation_id", None)
-    
+
     logger.error(
         "Application error",
         error_code=exc.error_code,
@@ -220,7 +220,7 @@ async def my_buddy_exception_handler(
         path=request.url.path,
         method=request.method,
     )
-    
+
     response_data = {
         "error": {
             "code": exc.error_code,
@@ -228,10 +228,10 @@ async def my_buddy_exception_handler(
             "details": exc.details,
         }
     }
-    
+
     if correlation_id:
         response_data["correlation_id"] = correlation_id
-    
+
     return JSONResponse(
         status_code=exc.status_code,
         content=response_data,
@@ -239,24 +239,24 @@ async def my_buddy_exception_handler(
 
 
 async def validation_exception_handler(
-    request: Request, 
+    request: Request,
     exc: ValidationError
 ) -> JSONResponse:
     """Handle validation errors with detailed field information.
-    
+
     Args:
         request: FastAPI request object.
         exc: Validation error instance.
-        
+
     Returns:
         JSONResponse: Formatted validation error response.
     """
     from app.core.logging import get_logger
-    
+
     logger = get_logger(__name__)
-    
+
     correlation_id = getattr(request.state, "correlation_id", None)
-    
+
     logger.warning(
         "Validation error",
         error_code=exc.error_code,
@@ -266,7 +266,7 @@ async def validation_exception_handler(
         path=request.url.path,
         method=request.method,
     )
-    
+
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -281,24 +281,24 @@ async def validation_exception_handler(
 
 
 async def service_unavailable_handler(
-    request: Request, 
+    request: Request,
     exc: ServiceUnavailableError
 ) -> JSONResponse:
     """Handle service unavailable errors.
-    
+
     Args:
         request: FastAPI request object.
         exc: Service unavailable error instance.
-        
+
     Returns:
         JSONResponse: Formatted service error response.
     """
     from app.core.logging import get_logger
-    
+
     logger = get_logger(__name__)
-    
+
     correlation_id = getattr(request.state, "correlation_id", None)
-    
+
     logger.error(
         "Service unavailable",
         error_code=exc.error_code,
@@ -308,7 +308,7 @@ async def service_unavailable_handler(
         path=request.url.path,
         method=request.method,
     )
-    
+
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -326,24 +326,24 @@ async def service_unavailable_handler(
 
 
 async def generic_exception_handler(
-    request: Request, 
+    request: Request,
     exc: Exception
 ) -> JSONResponse:
     """Handle unexpected exceptions.
-    
+
     Args:
         request: FastAPI request object.
         exc: Generic exception instance.
-        
+
     Returns:
         JSONResponse: Generic error response.
     """
     from app.core.logging import get_logger
-    
+
     logger = get_logger(__name__)
-    
+
     correlation_id = getattr(request.state, "correlation_id", None)
-    
+
     logger.error(
         "Unexpected error",
         error_type=type(exc).__name__,
@@ -353,17 +353,17 @@ async def generic_exception_handler(
         method=request.method,
         exc_info=True,
     )
-    
+
     # Don't expose internal error details in production
     from app.core.config import settings
-    
+
     if settings.is_production:
         message = "An unexpected error occurred"
         details = {}
     else:
         message = str(exc)
         details = {"type": type(exc).__name__}
-    
+
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={

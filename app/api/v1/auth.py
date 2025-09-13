@@ -5,28 +5,33 @@ login, logout, profile management, and session handling.
 """
 
 import logging
-from datetime import datetime, timedelta
-from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
-from fastapi.security import HTTPAuthorizationCredentials
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import get_db_session, get_current_user, get_current_user_optional
-from app.core.logging import LoggerMixin, log_ai_operation
-from app.models.entities.user import User
+from app.core.deps import get_current_user, get_db_session
+from app.core.logging import LoggerMixin
 from app.models.entities.session import Session
+from app.models.entities.user import User
 from app.schemas.auth import (
-    UserRegistrationRequest, UserLoginRequest, LoginResponse,
-    UserProfileResponse, UserProfileUpdateRequest, UserPreferencesResponse,
-    PasswordChangeRequest, PasswordResetRequest, PasswordResetConfirm,
-    TokenRefreshRequest, TokenRefreshResponse, LogoutRequest,
-    EmailVerificationRequest, PhoneVerificationRequest, PhoneVerificationConfirm,
-    UserSessionInfo, UserAccountDeletion, DataExportRequest,
-    TwoFactorSetupRequest, TwoFactorVerifyRequest
+    EmailVerificationRequest,
+    LoginResponse,
+    LogoutRequest,
+    PasswordChangeRequest,
+    PasswordResetConfirm,
+    PasswordResetRequest,
+    PhoneVerificationConfirm,
+    PhoneVerificationRequest,
+    TokenRefreshRequest,
+    TokenRefreshResponse,
+    UserLoginRequest,
+    UserProfileResponse,
+    UserProfileUpdateRequest,
+    UserRegistrationRequest,
+    UserSessionInfo,
 )
-from app.schemas.common import BaseResponse, ErrorResponse
+from app.schemas.common import BaseResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -34,10 +39,10 @@ router = APIRouter()
 
 class AuthService(LoggerMixin):
     """Authentication service with business logic."""
-    
+
     def __init__(self):
         super().__init__()
-    
+
     async def register_user(
         self,
         registration: UserRegistrationRequest,
@@ -54,7 +59,7 @@ class AuthService(LoggerMixin):
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail="User registration not yet implemented"
         )
-    
+
     async def authenticate_user(
         self,
         login: UserLoginRequest,
@@ -70,7 +75,7 @@ class AuthService(LoggerMixin):
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail="User authentication not yet implemented"
         )
-    
+
     async def refresh_token(
         self,
         refresh_request: TokenRefreshRequest,
@@ -102,16 +107,16 @@ async def register_user(
 ):
     """Register a new user account."""
     try:
-        user = await auth_service.register_user(registration, db)
-        
+        await auth_service.register_user(registration, db)
+
         # Schedule background tasks
         # background_tasks.add_task(send_verification_email, user.email)
-        
+
         return BaseResponse(
             success=True,
             message="User registered successfully. Please check your email for verification."
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -135,11 +140,11 @@ async def login_user(
     """Authenticate user and return JWT tokens."""
     try:
         user, session = await auth_service.authenticate_user(login, db)
-        
+
         # TODO: Generate JWT tokens
         access_token = "placeholder_access_token"
         refresh_token = "placeholder_refresh_token"
-        
+
         return LoginResponse(
             success=True,
             message="Login successful",
@@ -149,7 +154,7 @@ async def login_user(
             user_id=user.id,
             session_id=session.id
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -173,14 +178,14 @@ async def refresh_access_token(
     """Refresh access token."""
     try:
         token_data = await auth_service.refresh_token(refresh_request, db)
-        
+
         return TokenRefreshResponse(
             success=True,
             message="Token refreshed successfully",
             access_token=token_data["access_token"],
             expires_in=token_data["expires_in"]
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -208,14 +213,14 @@ async def logout_user(
         # 1. Invalidate refresh token
         # 2. End current session
         # 3. Optionally logout from all devices
-        
+
         logger.info(f"User logout: {current_user.id}")
-        
+
         return BaseResponse(
             success=True,
             message="Logout successful"
         )
-        
+
     except Exception as e:
         logger.error(f"Logout failed: {e}")
         raise HTTPException(
@@ -270,12 +275,12 @@ async def update_user_profile(
     try:
         # TODO: Implement profile update logic
         # Update only provided fields
-        
+
         logger.info(f"Profile update requested: {current_user.id}")
-        
+
         # For now, return current profile
         return await get_user_profile(current_user)
-        
+
     except Exception as e:
         logger.error(f"Profile update failed: {e}")
         raise HTTPException(
@@ -302,14 +307,14 @@ async def change_password(
         # 2. Hash new password
         # 3. Update password in database
         # 4. Invalidate all sessions except current
-        
+
         logger.info(f"Password change requested: {current_user.id}")
-        
+
         return BaseResponse(
             success=True,
             message="Password changed successfully"
         )
-        
+
     except Exception as e:
         logger.error(f"Password change failed: {e}")
         raise HTTPException(
@@ -335,15 +340,15 @@ async def request_password_reset(
         # 1. Check if user exists
         # 2. Generate reset token
         # 3. Send reset email
-        
+
         logger.info(f"Password reset requested for: {reset_request.email}")
-        
+
         # Always return success for security (don't reveal if email exists)
         return BaseResponse(
             success=True,
             message="If the email exists, a password reset link has been sent."
         )
-        
+
     except Exception as e:
         logger.error(f"Password reset request failed: {e}")
         raise HTTPException(
@@ -370,14 +375,14 @@ async def confirm_password_reset(
         # 3. Update password
         # 4. Invalidate reset token
         # 5. Invalidate all user sessions
-        
+
         logger.info("Password reset confirmation attempted")
-        
+
         return BaseResponse(
             success=True,
             message="Password reset successful"
         )
-        
+
     except Exception as e:
         logger.error(f"Password reset confirmation failed: {e}")
         raise HTTPException(
@@ -388,7 +393,7 @@ async def confirm_password_reset(
 
 @router.get(
     "/sessions",
-    response_model=List[UserSessionInfo],
+    response_model=list[UserSessionInfo],
     summary="Get user sessions",
     description="Get all active sessions for the current user."
 )
@@ -400,9 +405,9 @@ async def get_user_sessions(
     try:
         # TODO: Implement session retrieval
         logger.info(f"Session list requested: {current_user.id}")
-        
+
         return []  # Placeholder
-        
+
     except Exception as e:
         logger.error(f"Session retrieval failed: {e}")
         raise HTTPException(
@@ -426,12 +431,12 @@ async def terminate_session(
     try:
         # TODO: Implement session termination
         logger.info(f"Session termination requested: {session_id}")
-        
+
         return BaseResponse(
             success=True,
             message="Session terminated successfully"
         )
-        
+
     except Exception as e:
         logger.error(f"Session termination failed: {e}")
         raise HTTPException(

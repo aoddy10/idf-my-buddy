@@ -5,23 +5,26 @@ menu parsing, dietary analysis, and reservation management.
 """
 
 import logging
-from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 
-from app.core.deps import get_db_session, get_current_user_optional
+from app.core.deps import get_current_user_optional
 from app.core.logging import LoggerMixin
 from app.models.entities.user import User
+from app.schemas.common import Coordinates, LanguageCode
 from app.schemas.restaurant import (
-    RestaurantSearchRequest, RestaurantSearchResponse, Restaurant,
-    MenuParsingRequest, MenuParsingResponse, Menu, MenuItem,
-    DietaryAnalysisRequest, DietaryAnalysisResponse,
-    ReservationRequest, ReservationResponse,
-    CuisineType, PriceRange, MealType
+    CuisineType,
+    DietaryAnalysisRequest,
+    DietaryAnalysisResponse,
+    MenuParsingResponse,
+    PriceRange,
+    ReservationRequest,
+    ReservationResponse,
+    Restaurant,
+    RestaurantSearchRequest,
+    RestaurantSearchResponse,
 )
-from app.schemas.common import BaseResponse, Coordinates, LanguageCode
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -29,18 +32,18 @@ router = APIRouter()
 
 class RestaurantService(LoggerMixin):
     """Restaurant service with search and analysis logic."""
-    
+
     def __init__(self):
         super().__init__()
-    
+
     async def search_restaurants(
         self,
         search_request: RestaurantSearchRequest,
-        user: Optional[User] = None
+        user: User | None = None
     ) -> RestaurantSearchResponse:
         """Search for restaurants based on criteria."""
         self.logger.info("Restaurant search requested")
-        
+
         # TODO: Implement restaurant search
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
@@ -59,7 +62,7 @@ restaurant_service = RestaurantService()
 )
 async def search_restaurants(
     search_request: RestaurantSearchRequest,
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User | None = Depends(get_current_user_optional)
 ):
     """Search for restaurants."""
     try:
@@ -84,9 +87,9 @@ async def find_nearby_restaurants(
     lat: float = Query(..., description="Latitude", ge=-90, le=90),
     lng: float = Query(..., description="Longitude", ge=-180, le=180),
     radius: int = Query(2000, description="Search radius in meters"),
-    cuisine: Optional[CuisineType] = Query(None, description="Cuisine type"),
-    price_range: Optional[PriceRange] = Query(None, description="Price range"),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    cuisine: CuisineType | None = Query(None, description="Cuisine type"),
+    price_range: PriceRange | None = Query(None, description="Price range"),
+    current_user: User | None = Depends(get_current_user_optional)
 ):
     """Find nearby restaurants using query parameters."""
     # TODO: Implement nearby search
@@ -111,7 +114,7 @@ async def find_nearby_restaurants(
 async def get_restaurant_details(
     restaurant_id: str,
     language: LanguageCode = Query(LanguageCode.EN, description="Response language"),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User | None = Depends(get_current_user_optional)
 ):
     """Get restaurant details."""
     # TODO: Implement restaurant detail retrieval
@@ -129,9 +132,9 @@ async def get_restaurant_details(
 )
 async def parse_menu_photos(
     restaurant_id: str,
-    files: List[UploadFile] = File(..., description="Menu photo files"),
+    files: list[UploadFile] = File(..., description="Menu photo files"),
     language: LanguageCode = Query(LanguageCode.EN, description="Expected menu language"),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User | None = Depends(get_current_user_optional)
 ):
     """Parse menu from uploaded photos."""
     # TODO: Implement menu parsing
@@ -149,7 +152,7 @@ async def parse_menu_photos(
 )
 async def analyze_dietary_compatibility(
     analysis_request: DietaryAnalysisRequest,
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User | None = Depends(get_current_user_optional)
 ):
     """Analyze dietary compatibility of menu items."""
     # TODO: Implement dietary analysis
@@ -168,7 +171,7 @@ async def analyze_dietary_compatibility(
 async def make_reservation(
     restaurant_id: str,
     reservation_request: ReservationRequest,
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User | None = Depends(get_current_user_optional)
 ):
     """Make a restaurant reservation."""
     # TODO: Implement reservation system

@@ -5,18 +5,18 @@ external services, and other shared resources used across the application.
 """
 
 import logging
-from typing import AsyncGenerator, Optional
+from collections.abc import AsyncGenerator
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.core.config import get_settings
 from app.core.database import get_session
-from app.models.entities.user import User
 from app.models.entities.session import Session
+from app.models.entities.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -35,32 +35,31 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 
 # Authentication Dependencies
 async def get_current_user_optional(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
     db: AsyncSession = Depends(get_db_session)
-) -> Optional[User]:
+) -> User | None:
     """Get current user from JWT token (optional, returns None if not authenticated)."""
     if not credentials:
         return None
-    
+
     try:
         # Here you would decode and validate the JWT token
         # For now, this is a placeholder implementation
-        token = credentials.credentials
-        
+
         # TODO: Implement JWT token validation
         # user_id = decode_jwt_token(token)
         # For now, assume the token contains the user_id directly
-        
+
         logger.warning("JWT token validation not implemented - using placeholder")
         return None
-        
+
     except Exception as e:
         logger.warning(f"Token validation failed: {e}")
         return None
 
 
 async def get_current_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
     db: AsyncSession = Depends(get_db_session)
 ) -> User:
     """Get current user from JWT token (required)."""
@@ -70,7 +69,7 @@ async def get_current_user(
             detail="Authentication required",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     user = await get_current_user_optional(credentials, db)
     if not user:
         raise HTTPException(
@@ -78,24 +77,24 @@ async def get_current_user(
             detail="Invalid authentication credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     return user
 
 
 async def get_current_session(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session)
-) -> Optional[Session]:
+) -> Session | None:
     """Get current active session for the user."""
     try:
         statement = select(Session).where(
             Session.user_id == user.id,
-            Session.is_active == True
+            Session.is_active is True
         ).order_by(Session.last_activity_at.desc())
-        
+
         result = await db.exec(statement)
         session = result.first()
-        
+
         if session and session.is_expired:
             # Session is expired, mark as inactive
             session.is_active = False
@@ -103,9 +102,9 @@ async def get_current_session(
             db.add(session)
             await db.commit()
             return None
-        
+
         return session
-        
+
     except Exception as e:
         logger.error(f"Failed to get current session: {e}")
         return None
@@ -114,13 +113,13 @@ async def get_current_session(
 # Service Dependencies
 class AIServiceDependencies:
     """Dependencies for AI services."""
-    
+
     def __init__(self):
         self._whisper_model = None
         self._nllb_model = None
         self._ocr_service = None
         self._tts_service = None
-    
+
     async def get_whisper_service(self):
         """Get Whisper ASR service."""
         if not self._whisper_model:
@@ -129,7 +128,7 @@ class AIServiceDependencies:
             # TODO: Implement Whisper model loading
             pass
         return self._whisper_model
-    
+
     async def get_nllb_service(self):
         """Get NLLB translation service."""
         if not self._nllb_model:
@@ -138,7 +137,7 @@ class AIServiceDependencies:
             # TODO: Implement NLLB model loading
             pass
         return self._nllb_model
-    
+
     async def get_ocr_service(self):
         """Get OCR service."""
         if not self._ocr_service:
@@ -146,7 +145,7 @@ class AIServiceDependencies:
             # TODO: Implement OCR service initialization
             pass
         return self._ocr_service
-    
+
     async def get_tts_service(self):
         """Get TTS service."""
         if not self._tts_service:
@@ -183,12 +182,12 @@ async def get_tts_service():
 # External API Dependencies
 class ExternalServiceDependencies:
     """Dependencies for external services."""
-    
+
     def __init__(self):
         self._maps_client = None
         self._weather_client = None
         self._places_client = None
-    
+
     async def get_maps_service(self):
         """Get maps/geocoding service."""
         if not self._maps_client:
@@ -196,7 +195,7 @@ class ExternalServiceDependencies:
             # TODO: Implement maps service (Google Maps, OpenStreetMap, etc.)
             pass
         return self._maps_client
-    
+
     async def get_weather_service(self):
         """Get weather service."""
         if not self._weather_client:
@@ -204,7 +203,7 @@ class ExternalServiceDependencies:
             # TODO: Implement weather service (OpenWeatherMap, etc.)
             pass
         return self._weather_client
-    
+
     async def get_places_service(self):
         """Get places/POI service."""
         if not self._places_client:
@@ -274,18 +273,18 @@ def validate_coordinates(latitude: float, longitude: float) -> tuple[float, floa
 # Cache Dependencies (for future implementation)
 class CacheDependencies:
     """Dependencies for caching services."""
-    
+
     def __init__(self):
         self._redis_client = None
         self._memory_cache = {}
-    
+
     async def get_cache_service(self):
         """Get caching service (Redis or in-memory)."""
         if settings.REDIS_URL and not self._redis_client:
             # TODO: Initialize Redis client
             logger.info("Initializing Redis cache")
             pass
-        
+
         # Fallback to in-memory cache
         return self._memory_cache
 
@@ -300,7 +299,7 @@ async def get_cache_service():
 
 # Rate Limiting Dependencies (for future implementation)
 async def rate_limit_check(
-    user: Optional[User] = Depends(get_current_user_optional)
+    user: User | None = Depends(get_current_user_optional)
 ) -> bool:
     """Check rate limits for the current user/IP."""
     # TODO: Implement rate limiting logic

@@ -4,33 +4,32 @@ This module provides adapters for various places and points of interest services
 including Google Places, Foursquare, and other location-based APIs.
 """
 
-import logging
-import asyncio
-from typing import Dict, Any, List, Optional, Tuple
 from abc import ABC, abstractmethod
+from typing import Any
 
 import aiohttp
-from app.core.logging import LoggerMixin
+
 from app.core.config import settings
+from app.core.logging import LoggerMixin
 
 
 class BasePlacesAdapter(ABC, LoggerMixin):
     """Abstract base class for places adapters."""
-    
+
     def __init__(self):
         super().__init__()
         self._session = None
-    
+
     async def __aenter__(self):
         """Async context manager entry."""
         self._session = aiohttp.ClientSession()
         return self
-    
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
         if self._session:
             await self._session.close()
-    
+
     @abstractmethod
     async def search_places(
         self,
@@ -38,16 +37,16 @@ class BasePlacesAdapter(ABC, LoggerMixin):
         lat: float,
         lng: float,
         radius: int = 5000,
-        place_type: Optional[str] = None
-    ) -> Dict[str, Any]:
+        place_type: str | None = None
+    ) -> dict[str, Any]:
         """Search for places around a location."""
         pass
-    
+
     @abstractmethod
-    async def get_place_details(self, place_id: str) -> Dict[str, Any]:
+    async def get_place_details(self, place_id: str) -> dict[str, Any]:
         """Get detailed information about a specific place."""
         pass
-    
+
     @abstractmethod
     async def search_nearby(
         self,
@@ -55,35 +54,35 @@ class BasePlacesAdapter(ABC, LoggerMixin):
         lng: float,
         place_type: str,
         radius: int = 5000
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Search for nearby places of a specific type."""
         pass
 
 
 class GooglePlacesAdapter(BasePlacesAdapter):
     """Google Places API adapter."""
-    
-    def __init__(self, api_key: Optional[str] = None):
+
+    def __init__(self, api_key: str | None = None):
         super().__init__()
         self.api_key = api_key or settings.GOOGLE_PLACES_API_KEY
         self.base_url = "https://maps.googleapis.com/maps/api/place"
-        
+
         if not self.api_key:
             self.logger.warning("Google Places API key not configured")
-    
+
     async def search_places(
         self,
         query: str,
         lat: float,
         lng: float,
         radius: int = 5000,
-        place_type: Optional[str] = None
-    ) -> Dict[str, Any]:
+        place_type: str | None = None
+    ) -> dict[str, Any]:
         """Search for places using Google Places Text Search."""
-        
+
         if not self.api_key:
             raise ValueError("Google Places API key not configured")
-        
+
         try:
             params = {
                 "query": query,
@@ -92,33 +91,33 @@ class GooglePlacesAdapter(BasePlacesAdapter):
                 "key": self.api_key,
                 "language": "en"
             }
-            
+
             if place_type:
                 params["type"] = self._map_place_type_google(place_type)
-            
+
             url = f"{self.base_url}/textsearch/json"
-            
+
             async with self._session.get(url, params=params) as response:
                 if response.status != 200:
                     raise Exception(f"Google Places API error: {response.status}")
-                
+
                 data = await response.json()
-                
+
                 if data.get("status") not in ["OK", "ZERO_RESULTS"]:
                     raise Exception(f"Google Places API error: {data.get('status')}")
-                
+
                 return self._format_google_places_results(data, "text_search")
-                
+
         except Exception as e:
             self.logger.error(f"Google Places search failed: {e}")
             raise
-    
-    async def get_place_details(self, place_id: str) -> Dict[str, Any]:
+
+    async def get_place_details(self, place_id: str) -> dict[str, Any]:
         """Get place details using Google Places Details API."""
-        
+
         if not self.api_key:
             raise ValueError("Google Places API key not configured")
-        
+
         try:
             params = {
                 "place_id": place_id,
@@ -128,36 +127,36 @@ class GooglePlacesAdapter(BasePlacesAdapter):
                 "key": self.api_key,
                 "language": "en"
             }
-            
+
             url = f"{self.base_url}/details/json"
-            
+
             async with self._session.get(url, params=params) as response:
                 if response.status != 200:
                     raise Exception(f"Google Places API error: {response.status}")
-                
+
                 data = await response.json()
-                
+
                 if data.get("status") != "OK":
                     raise Exception(f"Google Places API error: {data.get('status')}")
-                
+
                 return self._format_google_place_details(data["result"])
-                
+
         except Exception as e:
             self.logger.error(f"Google Places details failed: {e}")
             raise
-    
+
     async def search_nearby(
         self,
         lat: float,
         lng: float,
         place_type: str,
         radius: int = 5000
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Search for nearby places using Google Places Nearby Search."""
-        
+
         if not self.api_key:
             raise ValueError("Google Places API key not configured")
-        
+
         try:
             params = {
                 "location": f"{lat},{lng}",
@@ -166,27 +165,27 @@ class GooglePlacesAdapter(BasePlacesAdapter):
                 "key": self.api_key,
                 "language": "en"
             }
-            
+
             url = f"{self.base_url}/nearbysearch/json"
-            
+
             async with self._session.get(url, params=params) as response:
                 if response.status != 200:
                     raise Exception(f"Google Places API error: {response.status}")
-                
+
                 data = await response.json()
-                
+
                 if data.get("status") not in ["OK", "ZERO_RESULTS"]:
                     raise Exception(f"Google Places API error: {data.get('status')}")
-                
+
                 return self._format_google_places_results(data, "nearby_search")
-                
+
         except Exception as e:
             self.logger.error(f"Google Places nearby search failed: {e}")
             raise
-    
+
     def _map_place_type_google(self, place_type: str) -> str:
         """Map generic place type to Google Places type."""
-        
+
         type_mapping = {
             "restaurant": "restaurant",
             "food": "food",
@@ -215,17 +214,17 @@ class GooglePlacesAdapter(BasePlacesAdapter):
             "bus_station": "bus_station",
             "taxi_stand": "taxi_stand"
         }
-        
+
         return type_mapping.get(place_type.lower(), place_type)
-    
-    def _format_google_places_results(self, data: Dict[str, Any], search_type: str) -> Dict[str, Any]:
+
+    def _format_google_places_results(self, data: dict[str, Any], search_type: str) -> dict[str, Any]:
         """Format Google Places search results."""
-        
+
         places = []
         for result in data.get("results", []):
             place = self._format_google_place(result)
             places.append(place)
-        
+
         return {
             "success": True,
             "provider": "google_places",
@@ -233,12 +232,12 @@ class GooglePlacesAdapter(BasePlacesAdapter):
             "places": places,
             "next_page_token": data.get("next_page_token")
         }
-    
-    def _format_google_place(self, result: Dict[str, Any]) -> Dict[str, Any]:
+
+    def _format_google_place(self, result: dict[str, Any]) -> dict[str, Any]:
         """Format a single Google Places result."""
-        
+
         location = result.get("geometry", {}).get("location", {})
-        
+
         return {
             "id": result["place_id"],
             "name": result.get("name", ""),
@@ -267,12 +266,12 @@ class GooglePlacesAdapter(BasePlacesAdapter):
             "plus_code": result.get("plus_code", {}),
             "permanently_closed": result.get("permanently_closed", False)
         }
-    
-    def _format_google_place_details(self, result: Dict[str, Any]) -> Dict[str, Any]:
+
+    def _format_google_place_details(self, result: dict[str, Any]) -> dict[str, Any]:
         """Format Google Places place details."""
-        
+
         location = result.get("geometry", {}).get("location", {})
-        
+
         return {
             "success": True,
             "provider": "google_places",
@@ -321,28 +320,28 @@ class GooglePlacesAdapter(BasePlacesAdapter):
 
 class FoursquareAdapter(BasePlacesAdapter):
     """Foursquare Places API adapter."""
-    
-    def __init__(self, api_key: Optional[str] = None):
+
+    def __init__(self, api_key: str | None = None):
         super().__init__()
         self.api_key = api_key or settings.FOURSQUARE_API_KEY
         self.base_url = "https://api.foursquare.com/v3/places"
-        
+
         if not self.api_key:
             self.logger.warning("Foursquare API key not configured")
-    
+
     async def search_places(
         self,
         query: str,
         lat: float,
         lng: float,
         radius: int = 5000,
-        place_type: Optional[str] = None
-    ) -> Dict[str, Any]:
+        place_type: str | None = None
+    ) -> dict[str, Any]:
         """Search for places using Foursquare Places Search."""
-        
+
         if not self.api_key:
             raise ValueError("Foursquare API key not configured")
-        
+
         try:
             params = {
                 "query": query,
@@ -350,67 +349,67 @@ class FoursquareAdapter(BasePlacesAdapter):
                 "radius": min(radius, 100000),  # Foursquare max is 100km
                 "limit": 50
             }
-            
+
             if place_type:
                 params["categories"] = self._map_place_type_foursquare(place_type)
-            
+
             headers = {
                 "Authorization": self.api_key,
                 "Accept": "application/json"
             }
-            
+
             url = f"{self.base_url}/search"
-            
+
             async with self._session.get(url, params=params, headers=headers) as response:
                 if response.status != 200:
                     raise Exception(f"Foursquare API error: {response.status}")
-                
+
                 data = await response.json()
-                
+
                 return self._format_foursquare_results(data, "search")
-                
+
         except Exception as e:
             self.logger.error(f"Foursquare search failed: {e}")
             raise
-    
-    async def get_place_details(self, place_id: str) -> Dict[str, Any]:
+
+    async def get_place_details(self, place_id: str) -> dict[str, Any]:
         """Get place details using Foursquare Places Details."""
-        
+
         if not self.api_key:
             raise ValueError("Foursquare API key not configured")
-        
+
         try:
             headers = {
                 "Authorization": self.api_key,
                 "Accept": "application/json"
             }
-            
+
             url = f"{self.base_url}/{place_id}"
-            
+
             async with self._session.get(url, headers=headers) as response:
                 if response.status != 200:
                     raise Exception(f"Foursquare API error: {response.status}")
-                
+
                 data = await response.json()
-                
+
                 return self._format_foursquare_place_details(data)
-                
+
         except Exception as e:
             self.logger.error(f"Foursquare place details failed: {e}")
             raise
-    
+
     async def search_nearby(
         self,
         lat: float,
         lng: float,
         place_type: str,
         radius: int = 5000
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Search for nearby places using Foursquare."""
-        
+
         if not self.api_key:
             raise ValueError("Foursquare API key not configured")
-        
+
         try:
             params = {
                 "ll": f"{lat},{lng}",
@@ -418,29 +417,29 @@ class FoursquareAdapter(BasePlacesAdapter):
                 "categories": self._map_place_type_foursquare(place_type),
                 "limit": 50
             }
-            
+
             headers = {
                 "Authorization": self.api_key,
                 "Accept": "application/json"
             }
-            
+
             url = f"{self.base_url}/nearby"
-            
+
             async with self._session.get(url, params=params, headers=headers) as response:
                 if response.status != 200:
                     raise Exception(f"Foursquare API error: {response.status}")
-                
+
                 data = await response.json()
-                
+
                 return self._format_foursquare_results(data, "nearby")
-                
+
         except Exception as e:
             self.logger.error(f"Foursquare nearby search failed: {e}")
             raise
-    
+
     def _map_place_type_foursquare(self, place_type: str) -> str:
         """Map generic place type to Foursquare category ID."""
-        
+
         # Foursquare uses category IDs - these are some common ones
         type_mapping = {
             "restaurant": "13065",  # Restaurant
@@ -470,30 +469,30 @@ class FoursquareAdapter(BasePlacesAdapter):
             "bus_station": "19041",  # Bus Station
             "taxi_stand": "19057"  # Taxi
         }
-        
+
         return type_mapping.get(place_type.lower(), "19000")  # Default to Travel
-    
-    def _format_foursquare_results(self, data: Dict[str, Any], search_type: str) -> Dict[str, Any]:
+
+    def _format_foursquare_results(self, data: dict[str, Any], search_type: str) -> dict[str, Any]:
         """Format Foursquare search results."""
-        
+
         places = []
         for result in data.get("results", []):
             place = self._format_foursquare_place(result)
             places.append(place)
-        
+
         return {
             "success": True,
             "provider": "foursquare",
             "search_type": search_type,
             "places": places
         }
-    
-    def _format_foursquare_place(self, result: Dict[str, Any]) -> Dict[str, Any]:
+
+    def _format_foursquare_place(self, result: dict[str, Any]) -> dict[str, Any]:
         """Format a single Foursquare place result."""
-        
+
         geocodes = result.get("geocodes", {}).get("main", {})
         location = result.get("location", {})
-        
+
         return {
             "id": result["fsq_id"],
             "name": result.get("name", ""),
@@ -515,14 +514,14 @@ class FoursquareAdapter(BasePlacesAdapter):
             "timezone": result.get("timezone", ""),
             "chains": result.get("chains", [])
         }
-    
-    def _format_foursquare_place_details(self, data: Dict[str, Any]) -> Dict[str, Any]:
+
+    def _format_foursquare_place_details(self, data: dict[str, Any]) -> dict[str, Any]:
         """Format Foursquare place details."""
-        
+
         result = data
         geocodes = result.get("geocodes", {}).get("main", {})
         location = result.get("location", {})
-        
+
         return {
             "success": True,
             "provider": "foursquare",

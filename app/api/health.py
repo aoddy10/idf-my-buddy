@@ -4,10 +4,11 @@ This module provides health check and status endpoints for monitoring
 the application and its dependencies.
 """
 
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel
 from datetime import datetime
-from typing import Dict, Any
+from typing import Any
+
+from fastapi import APIRouter
+from pydantic import BaseModel
 
 router = APIRouter()
 
@@ -25,7 +26,7 @@ async def health_check() -> HealthResponse:
     """Basic health check endpoint."""
     from app.core.config import get_settings
     settings = get_settings()
-    
+
     return HealthResponse(
         status="healthy",
         timestamp=datetime.utcnow(),
@@ -34,8 +35,8 @@ async def health_check() -> HealthResponse:
     )
 
 
-@router.get("/ready", response_model=Dict[str, Any])
-async def readiness_check() -> Dict[str, Any]:
+@router.get("/ready", response_model=dict[str, Any])
+async def readiness_check() -> dict[str, Any]:
     """Readiness check for deployment health monitoring."""
     return {
         "status": "ready",
@@ -47,8 +48,8 @@ async def readiness_check() -> Dict[str, Any]:
     }
 
 
-@router.get("/live", response_model=Dict[str, str])
-async def liveness_check() -> Dict[str, str]:
+@router.get("/live", response_model=dict[str, str])
+async def liveness_check() -> dict[str, str]:
     """Liveness check for container orchestration."""
     return {
         "status": "alive",

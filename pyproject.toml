@@ -200,6 +200,8 @@ Issues = "https://github.com/aoddy10/idf-my-buddy/issues"
 [tool.ruff]
 target-version = "py311"
 line-length = 88
+
+[tool.ruff.lint]
 select = [
     "E",   # pycodestyle errors
     "W",   # pycodestyle warnings
@@ -218,16 +220,13 @@ ignore = [
     "C901",  # too complex
     "W191",  # indentation contains tabs
 ]
+per-file-ignores = {"__init__.py" = ["F401"], "tests/**/*" = ["ARG", "SIM"]}
 
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
-
-[tool.ruff.per-file-ignores]
-"__init__.py" = ["F401"]  # Allow unused imports in __init__.py
-"tests/**/*" = ["ARG", "SIM"]  # Less strict for tests
 
 [tool.mypy]
 python_version = "3.11"
@@ -317,6 +316,9 @@ markers = [
     "security: marks tests as security tests",
     "performance: marks tests as performance tests"
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
 
 [tool.coverage.run]
 source = ["app"]

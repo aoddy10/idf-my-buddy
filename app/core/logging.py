@@ -6,7 +6,7 @@ and performance timing for production observability.
 
 import logging
 import sys
-from typing import Any, Dict, Optional
+from typing import Any
 
 import structlog
 from structlog.stdlib import LoggerFactory
@@ -16,7 +16,7 @@ from app.core.config import settings
 
 def setup_logging() -> None:
     """Configure structured logging for the application."""
-    
+
     # Configure structlog processors
     processors = [
         structlog.contextvars.merge_contextvars,
@@ -24,7 +24,7 @@ def setup_logging() -> None:
         structlog.processors.StackInfoRenderer(),
         structlog.dev.set_exc_info,
     ]
-    
+
     if settings.log_format == "json":
         # JSON output for production
         processors.extend([
@@ -37,7 +37,7 @@ def setup_logging() -> None:
             structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M:%S"),
             structlog.dev.ConsoleRenderer(colors=True)
         ])
-    
+
     # Configure structlog
     structlog.configure(
         processors=processors,
@@ -47,26 +47,26 @@ def setup_logging() -> None:
         ),
         cache_logger_on_first_use=True,
     )
-    
+
     # Configure standard library logging
     logging.basicConfig(
         format="%(message)s",
         stream=sys.stdout,
         level=getattr(logging, settings.log_level.upper()),
     )
-    
+
     # Silence noisy third-party loggers
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("asyncio").setLevel(logging.WARNING)
 
 
-def get_logger(name: Optional[str] = None) -> structlog.BoundLogger:
+def get_logger(name: str | None = None) -> structlog.BoundLogger:
     """Get a logger instance with optional name.
-    
+
     Args:
         name: Logger name, typically __name__ of the calling module.
-        
+
     Returns:
         structlog.BoundLogger: Configured logger instance.
     """
@@ -75,7 +75,7 @@ def get_logger(name: Optional[str] = None) -> structlog.BoundLogger:
 
 class LoggerMixin:
     """Mixin class to add logging capability to any class."""
-    
+
     @property
     def logger(self) -> structlog.BoundLogger:
         """Get logger for this class."""
@@ -84,35 +84,35 @@ class LoggerMixin:
 
 def log_function_call(func_name: str, **kwargs: Any) -> None:
     """Log function call with parameters.
-    
+
     Args:
         func_name: Name of the function being called.
         **kwargs: Function parameters to log.
     """
     logger = get_logger()
-    
+
     # Filter out sensitive parameters
     safe_kwargs = {
-        key: "***REDACTED***" if key.lower() in ["password", "token", "key", "secret"] 
+        key: "***REDACTED***" if key.lower() in ["password", "token", "key", "secret"]
         else value
         for key, value in kwargs.items()
     }
-    
+
     logger.debug("Function called", function=func_name, parameters=safe_kwargs)
 
 
 def log_performance(operation: str, duration: float, **context: Any) -> None:
     """Log performance metrics for operations.
-    
+
     Args:
         operation: Name of the operation being measured.
         duration: Duration in seconds.
         **context: Additional context for the operation.
     """
     logger = get_logger()
-    
+
     level = "warning" if duration > 1.0 else "info"
-    
+
     getattr(logger, level)(
         "Performance metric",
         operation=operation,
@@ -124,14 +124,14 @@ def log_performance(operation: str, duration: float, **context: Any) -> None:
 def log_ai_operation(
     operation: str,
     model: str,
-    input_size: Optional[int] = None,
-    output_size: Optional[int] = None,
-    confidence: Optional[float] = None,
-    duration: Optional[float] = None,
+    input_size: int | None = None,
+    output_size: int | None = None,
+    confidence: float | None = None,
+    duration: float | None = None,
     **context: Any
 ) -> None:
     """Log AI/ML operation metrics.
-    
+
     Args:
         operation: Type of AI operation (e.g., "transcription", "translation").
         model: Model name or identifier.
@@ -142,25 +142,25 @@ def log_ai_operation(
         **context: Additional context for the operation.
     """
     logger = get_logger()
-    
+
     log_data = {
         "ai_operation": operation,
         "model": model,
         **context
     }
-    
+
     if input_size is not None:
         log_data["input_size"] = input_size
-    
+
     if output_size is not None:
         log_data["output_size"] = output_size
-    
+
     if confidence is not None:
         log_data["confidence"] = round(confidence, 3)
-    
+
     if duration is not None:
         log_data["duration_seconds"] = round(duration, 4)
-    
+
     logger.info("AI operation completed", **log_data)
 
 
@@ -172,7 +172,7 @@ def log_user_action(
     **context: Any
 ) -> None:
     """Log user actions for analytics (privacy-preserving).
-    
+
     Args:
         user_id: Anonymized user identifier.
         action: User action type.
@@ -182,9 +182,9 @@ def log_user_action(
     """
     if not settings.enable_telemetry:
         return
-    
+
     logger = get_logger()
-    
+
     logger.info(
         "User action",
         user_id=user_id,

@@ -5,10 +5,10 @@ and SQLModel for the PostgreSQL database connection.
 """
 
 import logging
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
 
 from app.core.config import get_settings
@@ -65,14 +65,11 @@ async def create_db_and_tables():
         engine = get_engine()
         async with engine.begin() as conn:
             # Import all models to ensure they are registered with SQLModel
-            from app.models.entities.user import User
-            from app.models.entities.session import Session
-            from app.models.entities.travel_context import TravelContext
-            
+
             # Create all tables
             await conn.run_sync(SQLModel.metadata.create_all)
             logger.info("Database tables created successfully")
-            
+
     except Exception as e:
         logger.error(f"Failed to create database tables: {e}")
         raise
@@ -84,7 +81,7 @@ async def drop_db_and_tables():
         async with engine.begin() as conn:
             await conn.run_sync(SQLModel.metadata.drop_all)
             logger.info("Database tables dropped successfully")
-            
+
     except Exception as e:
         logger.error(f"Failed to drop database tables: {e}")
         raise
@@ -92,7 +89,7 @@ async def drop_db_and_tables():
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     """Get async database session.
-    
+
     Yields:
         AsyncSession: Database session for executing queries
     """
@@ -110,7 +107,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 @asynccontextmanager
 async def get_session_context():
     """Get database session as async context manager.
-    
+
     Usage:
         async with get_session_context() as session:
             # Use session here
@@ -139,7 +136,7 @@ async def close_db_connection():
 # Health check function
 async def check_db_health() -> bool:
     """Check database connection health.
-    
+
     Returns:
         bool: True if database is accessible, False otherwise
     """
