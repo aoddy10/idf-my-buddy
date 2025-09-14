@@ -1,265 +1,296 @@
-"""Navigation schemas for My Buddy API.
+"""Navigation and location services schemas for My Buddy API.
 
 This module contains Pydantic schemas for navigation-related endpoints,
-including route planning, directions, and location services.
+including GPS location services, route planning, directions, POI discovery,
+and voice-guided navigation.
 """
 
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, List, Optional, Dict
 from uuid import UUID
 
 from pydantic import BaseModel, Field, validator
 
-from app.schemas.common import (
-    Address,
-    BaseResponse,
-    Coordinates,
-    LanguageCode,
-    Location,
-)
+from app.schemas.common import BaseResponse, LanguageCode, Coordinates, Location, Address
 
 
 class TransportMode(str, Enum):
     """Transportation modes for navigation."""
     WALKING = "walking"
     DRIVING = "driving"
-    PUBLIC_TRANSIT = "public_transit"
-    CYCLING = "cycling"
-    TAXI = "taxi"
-    RIDESHARE = "rideshare"
+    BICYCLING = "bicycling"
+    TRANSIT = "transit"
 
 
 class RoutePreference(str, Enum):
     """Route optimization preferences."""
     FASTEST = "fastest"
     SHORTEST = "shortest"
-    SCENIC = "scenic"
     AVOID_TOLLS = "avoid_tolls"
     AVOID_HIGHWAYS = "avoid_highways"
-    ACCESSIBLE = "accessible"
+    AVOID_FERRIES = "avoid_ferries"
 
 
-class NavigationRequest(BaseModel):
-    """Navigation route request schema."""
-
-    origin: Location = Field(description="Starting location")
-    destination: Location = Field(description="Destination location")
-    waypoints: list[Location] = Field(default_factory=list, description="Intermediate waypoints")
-    transport_mode: TransportMode = Field(default=TransportMode.WALKING, description="Transportation mode")
-    route_preference: RoutePreference = Field(default=RoutePreference.FASTEST, description="Route optimization")
-    avoid_areas: list[Coordinates] = Field(default_factory=list, description="Areas to avoid")
-    departure_time: datetime | None = Field(None, description="Preferred departure time")
-    arrival_time: datetime | None = Field(None, description="Preferred arrival time")
-    language: LanguageCode = Field(default=LanguageCode.EN, description="Language for instructions")
-    accessibility_required: bool = Field(default=False, description="Require accessible routes")
-
-    @validator('waypoints')
-    def validate_waypoints(cls, v):
-        """Validate waypoint count."""
-        if len(v) > 10:
-            raise ValueError("Maximum 10 waypoints allowed")
-        return v
-
-
-class RouteStep(BaseModel):
-    """Individual route step/instruction."""
-
-    step_number: int = Field(ge=1, description="Step sequence number")
-    instruction: str = Field(description="Turn-by-turn instruction")
-    translated_instruction: str | None = Field(None, description="Translated instruction")
-    distance_meters: float = Field(ge=0, description="Step distance in meters")
-    duration_seconds: int = Field(ge=0, description="Estimated step duration")
-    start_location: Coordinates = Field(description="Step start coordinates")
-    end_location: Coordinates = Field(description="Step end coordinates")
-    polyline: str | None = Field(None, description="Encoded polyline for step geometry")
-    maneuver_type: str | None = Field(None, description="Type of maneuver")
-    road_name: str | None = Field(None, description="Road or street name")
-    transport_mode: TransportMode = Field(description="Transport mode for this step")
-
-
-class Route(BaseModel):
-    """Complete route information."""
-
-    route_id: UUID = Field(description="Unique route identifier")
-    summary: str = Field(description="Route summary description")
-    total_distance_meters: float = Field(ge=0, description="Total route distance")
-    total_duration_seconds: int = Field(ge=0, description="Estimated total duration")
-    steps: list[RouteStep] = Field(description="Turn-by-turn route steps")
-    polyline: str = Field(description="Encoded polyline for entire route")
-    bounds: dict[str, Coordinates] = Field(description="Route bounding box (northeast, southwest)")
-    warnings: list[str] = Field(default_factory=list, description="Route warnings or alerts")
-    toll_info: dict[str, Any] | None = Field(None, description="Toll road information")
-    traffic_info: dict[str, Any] | None = Field(None, description="Current traffic conditions")
-
-
-class AlternativeRoute(BaseModel):
-    """Alternative route option."""
-
-    route: Route = Field(description="Alternative route details")
-    time_difference_seconds: int = Field(description="Time difference vs primary route")
-    distance_difference_meters: float = Field(description="Distance difference vs primary route")
-    advantages: list[str] = Field(default_factory=list, description="Route advantages")
-    disadvantages: list[str] = Field(default_factory=list, description="Route disadvantages")
-
-
-class NavigationResponse(BaseResponse):
-    """Navigation response with routes."""
-
-    primary_route: Route = Field(description="Primary recommended route")
-    alternative_routes: list[AlternativeRoute] = Field(default_factory=list, description="Alternative route options")
-    request_id: UUID = Field(description="Request tracking identifier")
-    generated_at: datetime = Field(default_factory=datetime.utcnow, description="Response generation time")
-
-
-# Live Navigation Schemas
-class NavigationUpdate(BaseModel):
-    """Live navigation update."""
-
-    current_location: Coordinates = Field(description="Current user location")
-    next_instruction: str = Field(description="Next navigation instruction")
-    distance_to_next_meters: float = Field(ge=0, description="Distance to next turn")
-    time_to_next_seconds: int = Field(ge=0, description="Time to next instruction")
-    remaining_distance_meters: float = Field(ge=0, description="Remaining total distance")
-    remaining_time_seconds: int = Field(ge=0, description="Remaining total time")
-    current_road: str | None = Field(None, description="Current road name")
-    speed_limit: int | None = Field(None, description="Current speed limit")
-    traffic_delay_seconds: int | None = Field(None, description="Traffic-related delays")
-
-
-class NavigationAlert(BaseModel):
-    """Navigation alert or warning."""
-
-    alert_type: str = Field(description="Type of alert (traffic, road_closure, etc.)")
-    severity: str = Field(description="Alert severity (low, medium, high)")
-    message: str = Field(description="Alert message")
-    translated_message: str | None = Field(None, description="Translated alert message")
-    location: Coordinates | None = Field(None, description="Alert location")
-    affects_route: bool = Field(description="Whether alert affects current route")
-    suggested_action: str | None = Field(None, description="Suggested user action")
-
-
-# Points of Interest (POI) Schemas
 class POICategory(str, Enum):
     """Point of Interest categories."""
     RESTAURANT = "restaurant"
+    HOTEL = "hotel"
     GAS_STATION = "gas_station"
     ATM = "atm"
     HOSPITAL = "hospital"
     PHARMACY = "pharmacy"
     TOURIST_ATTRACTION = "tourist_attraction"
     SHOPPING = "shopping"
-    ACCOMMODATION = "accommodation"
-    TRANSPORT_HUB = "transport_hub"
+    TRANSPORT = "transport"
     ENTERTAINMENT = "entertainment"
-    EDUCATION = "education"
-    RELIGIOUS = "religious"
-    GOVERNMENT = "government"
+    OTHER = "other"
+
+
+class NavigationRequest(BaseModel):
+    """Navigation route request schema."""
+
+    origin: Coordinates = Field(description="Starting location coordinates")
+    destination: Coordinates = Field(description="Destination coordinates")
+    waypoints: List[Coordinates] = Field(default_factory=list, description="Intermediate waypoints")
+    transport_mode: TransportMode = Field(default=TransportMode.WALKING, description="Transportation mode")
+    route_preference: RoutePreference = Field(default=RoutePreference.FASTEST, description="Route optimization")
+    avoid_tolls: bool = Field(default=False, description="Avoid toll roads")
+    avoid_highways: bool = Field(default=False, description="Avoid highways")
+    avoid_ferries: bool = Field(default=False, description="Avoid ferries")
+    departure_time: Optional[datetime] = Field(None, description="Planned departure time")
+    language: LanguageCode = Field(default=LanguageCode.EN, description="Language for instructions")
+
+    @validator("waypoints")
+    def validate_waypoints(cls, v):
+        """Validate waypoints list."""
+        if len(v) > 8:
+            raise ValueError("Maximum 8 waypoints allowed")
+        return v
+
+
+class NavigationStep(BaseModel):
+    """Individual step in navigation instructions."""
+
+    instruction: str = Field(description="Human-readable instruction")
+    distance_meters: int = Field(description="Distance for this step in meters")
+    duration_seconds: int = Field(description="Estimated time for this step in seconds")
+    maneuver: str = Field(description="Maneuver type (turn-left, turn-right, straight, etc.)")
+    start_location: Coordinates = Field(description="Step start coordinates")
+    end_location: Coordinates = Field(description="Step end coordinates")
+    travel_mode: TransportMode = Field(description="Transportation mode for this step")
+    polyline: Optional[str] = Field(None, description="Encoded polyline for step visualization")
+
+
+class RouteInfo(BaseModel):
+    """Detailed route information."""
+
+    distance_meters: int = Field(description="Total route distance in meters")
+    duration_seconds: int = Field(description="Estimated travel time in seconds")
+    duration_in_traffic_seconds: Optional[int] = Field(None, description="Time considering current traffic")
+    steps: List[NavigationStep] = Field(description="Turn-by-turn navigation instructions")
+    overview_polyline: Optional[str] = Field(None, description="Route overview encoded polyline")
+    bounds: Dict[str, Coordinates] = Field(description="Route bounding box (northeast, southwest)")
+    warnings: List[str] = Field(default_factory=list, description="Route warnings and alerts")
+    copyrights: Optional[str] = Field(None, description="Route data attribution and copyrights")
+
+
+class NavigationResponse(BaseResponse):
+    """Navigation route calculation response."""
+
+    routes: List[RouteInfo] = Field(description="Available route options")
+    status: str = Field(description="Route calculation status")
+    geocoded_waypoints: List[Dict[str, Any]] = Field(default_factory=list, description="Geocoded waypoint information")
+
+
+class LocationUpdateRequest(BaseModel):
+    """Real-time location update during active navigation."""
+
+    session_id: UUID = Field(description="Navigation session identifier")
+    current_location: Coordinates = Field(description="Current user location")
+    accuracy_meters: Optional[float] = Field(None, ge=0.0, description="Location accuracy in meters")
+    bearing_degrees: Optional[float] = Field(None, ge=0.0, lt=360.0, description="Compass bearing (0-359)")
+    speed_mps: Optional[float] = Field(None, ge=0.0, description="Current speed in meters per second")
+    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Location timestamp")
+
+
+class TrafficAlert(BaseModel):
+    """Traffic or route alert information."""
+
+    alert_type: str = Field(description="Alert type (traffic, construction, incident, road_closure)")
+    severity: str = Field(description="Alert severity (low, medium, high, critical)")
+    description: str = Field(description="Human-readable alert description")
+    location: Optional[Coordinates] = Field(None, description="Alert location coordinates")
+    distance_to_alert_meters: Optional[int] = Field(None, ge=0, description="Distance to alert from current location")
+    estimated_delay_seconds: Optional[int] = Field(None, ge=0, description="Estimated delay caused by alert")
+
+
+class NavigationUpdate(BaseResponse):
+    """Real-time navigation status update."""
+
+    session_id: UUID = Field(description="Navigation session identifier")
+    current_instruction: Optional[NavigationStep] = Field(None, description="Current navigation instruction")
+    next_instruction: Optional[NavigationStep] = Field(None, description="Next navigation instruction")
+    distance_remaining_meters: int = Field(ge=0, description="Remaining distance to destination")
+    time_remaining_seconds: int = Field(ge=0, description="Estimated remaining time")
+    progress_percentage: float = Field(ge=0.0, le=100.0, description="Navigation progress percentage")
+    off_route: bool = Field(default=False, description="Whether user has deviated from planned route")
+    should_reroute: bool = Field(default=False, description="Whether route recalculation is recommended")
+    traffic_alerts: List[TrafficAlert] = Field(default_factory=list, description="Current traffic alerts ahead")
 
 
 class PointOfInterest(BaseModel):
-    """Point of Interest information."""
+    """Point of Interest information with business details."""
 
-    poi_id: str = Field(description="Unique POI identifier")
-    name: str = Field(description="POI name")
-    translated_name: str | None = Field(None, description="Translated POI name")
-    category: POICategory = Field(description="POI category")
-    location: Location = Field(description="POI location")
-    distance_meters: float = Field(ge=0, description="Distance from reference point")
-    rating: float | None = Field(None, ge=0, le=5, description="User rating (0-5)")
-    price_level: int | None = Field(None, ge=1, le=4, description="Price level (1-4)")
-    opening_hours: dict[str, str] | None = Field(None, description="Opening hours by day")
-    phone: str | None = Field(None, description="Contact phone number")
-    website: str | None = Field(None, description="Website URL")
-    description: str | None = Field(None, description="POI description")
-    amenities: list[str] = Field(default_factory=list, description="Available amenities")
-    accessibility_features: list[str] = Field(default_factory=list, description="Accessibility features")
+    id: str = Field(description="POI unique identifier")
+    name: str = Field(description="POI name or business name")
+    category: POICategory = Field(description="POI category type")
+    subcategory: Optional[str] = Field(None, description="Specific subcategory (e.g., 'Italian Restaurant')")
+    coordinates: Coordinates = Field(description="POI location coordinates")
+    distance_meters: Optional[int] = Field(None, ge=0, description="Distance from search point")
+    rating: Optional[float] = Field(None, ge=0.0, le=5.0, description="Average rating (0-5 stars)")
+    review_count: Optional[int] = Field(None, ge=0, description="Total number of reviews")
+    price_level: Optional[int] = Field(None, ge=0, le=4, description="Price level (0=free, 1=$, 2=$$, 3=$$$, 4=$$$$)")
+    phone_number: Optional[str] = Field(None, description="Contact phone number")
+    website_url: Optional[str] = Field(None, description="Official website URL")
+    formatted_address: Optional[str] = Field(None, description="Human-readable address")
+    business_hours: Optional[Dict[str, Any]] = Field(None, description="Operating hours by day of week")
+    photos: List[str] = Field(default_factory=list, description="Photo URLs")
+    currently_open: Optional[bool] = Field(None, description="Whether establishment is currently open")
 
 
 class POISearchRequest(BaseModel):
-    """POI search request schema."""
+    """Point of Interest search request."""
 
     location: Coordinates = Field(description="Search center coordinates")
     radius_meters: int = Field(default=1000, ge=100, le=50000, description="Search radius in meters")
-    category: POICategory | None = Field(None, description="POI category filter")
-    query: str | None = Field(None, max_length=100, description="Search query text")
-    min_rating: float | None = Field(None, ge=0, le=5, description="Minimum rating filter")
-    max_price_level: int | None = Field(None, ge=1, le=4, description="Maximum price level")
-    open_now: bool = Field(default=False, description="Filter for currently open POIs")
-    accessible_only: bool = Field(default=False, description="Filter for accessible POIs only")
-    language: LanguageCode = Field(default=LanguageCode.EN, description="Language for results")
-    max_results: int = Field(default=20, ge=1, le=50, description="Maximum number of results")
+    categories: List[POICategory] = Field(default_factory=list, description="POI categories to search for")
+    keyword: Optional[str] = Field(None, max_length=100, description="Search keyword or business name")
+    max_results: int = Field(default=20, ge=1, le=100, description="Maximum number of results to return")
+    language: LanguageCode = Field(default=LanguageCode.EN, description="Preferred language for results")
+    open_now: bool = Field(default=False, description="Filter for establishments currently open")
+    min_rating: Optional[float] = Field(None, ge=0.0, le=5.0, description="Minimum rating filter")
 
 
 class POISearchResponse(BaseResponse):
-    """POI search response."""
+    """Point of Interest search results."""
 
-    pois: list[PointOfInterest] = Field(description="Found points of interest")
-    search_center: Coordinates = Field(description="Search center location")
-    search_radius_meters: int = Field(description="Search radius used")
-    total_found: int = Field(description="Total POIs found")
-    query_id: UUID = Field(description="Search query identifier")
-
-
-# Geocoding Schemas
-class GeocodingRequest(BaseModel):
-    """Geocoding (address to coordinates) request."""
-
-    address: str = Field(min_length=1, max_length=500, description="Address to geocode")
-    region_bias: str | None = Field(None, description="Region bias for results")
-    language: LanguageCode = Field(default=LanguageCode.EN, description="Result language")
-    restrict_to_country: str | None = Field(None, description="Country code restriction")
+    pois: List[PointOfInterest] = Field(description="Found points of interest")
+    search_center: Coordinates = Field(description="Search center coordinates used")
+    search_radius_meters: int = Field(description="Actual search radius used")
+    total_results: int = Field(ge=0, description="Total POIs found (may exceed returned count)")
+    next_page_token: Optional[str] = Field(None, description="Token for retrieving additional results")
 
 
-class GeocodingResult(BaseModel):
-    """Geocoding result."""
+class GeocodeRequest(BaseModel):
+    """Address to coordinates geocoding request."""
 
-    location: Location = Field(description="Geocoded location")
-    confidence: float = Field(ge=0, le=1, description="Geocoding confidence")
-    result_type: str = Field(description="Type of result (address, establishment, etc.)")
-    partial_match: bool = Field(description="Whether result is a partial match")
-
-
-class GeocodingResponse(BaseResponse):
-    """Geocoding response."""
-
-    results: list[GeocodingResult] = Field(description="Geocoding results")
-    query: str = Field(description="Original query")
+    address: str = Field(max_length=200, description="Address string to geocode")
+    language: LanguageCode = Field(default=LanguageCode.EN, description="Preferred language for results")
+    country_code: Optional[str] = Field(None, max_length=2, description="Country code hint (ISO 3166-1 alpha-2)")
+    bounds: Optional[Dict[str, Coordinates]] = Field(None, description="Bounding box for search bias")
 
 
-# Reverse Geocoding Schemas
-class ReverseGeocodingRequest(BaseModel):
-    """Reverse geocoding (coordinates to address) request."""
+class GeocodeResponse(BaseResponse):
+    """Geocoding response with location results."""
+
+    results: List[Dict[str, Any]] = Field(description="Geocoding candidate results")
+    coordinates: Coordinates = Field(description="Best match coordinates")
+    formatted_address: str = Field(description="Formatted address string")
+    place_id: Optional[str] = Field(None, description="Google Places or OSM place identifier")
+    accuracy: str = Field(description="Geocoding accuracy level (ROOFTOP, RANGE_INTERPOLATED, etc.)")
+    address_components: List[Dict[str, Any]] = Field(description="Structured address components")
+
+
+class ReverseGeocodeRequest(BaseModel):
+    """Coordinates to address reverse geocoding request."""
 
     coordinates: Coordinates = Field(description="Coordinates to reverse geocode")
-    result_types: list[str] = Field(default_factory=list, description="Types of results to return")
-    language: LanguageCode = Field(default=LanguageCode.EN, description="Result language")
+    language: LanguageCode = Field(default=LanguageCode.EN, description="Preferred language for address results")
+    result_types: List[str] = Field(default_factory=list, description="Filter result types (street_address, route, etc.)")
 
 
-class ReverseGeocodingResponse(BaseResponse):
-    """Reverse geocoding response."""
+class ReverseGeocodeResponse(BaseResponse):
+    """Reverse geocoding response with address results."""
 
-    results: list[Address] = Field(description="Address results")
+    results: List[Address] = Field(description="Address results from most specific to least specific")
     coordinates: Coordinates = Field(description="Input coordinates")
+    formatted_addresses: List[str] = Field(description="Human-readable formatted address strings")
+    place_id: Optional[str] = Field(None, description="Google Places or OSM place identifier")
 
 
-# Real-time Location Tracking
-class LocationUpdate(BaseModel):
-    """Location update for tracking."""
+class CurrentLocationRequest(BaseModel):
+    """Current location information request."""
 
     coordinates: Coordinates = Field(description="Current coordinates")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Location timestamp")
-    speed_mps: float | None = Field(None, ge=0, description="Speed in meters per second")
-    heading_degrees: float | None = Field(None, ge=0, lt=360, description="Heading in degrees")
-    altitude_meters: float | None = Field(None, description="Altitude in meters")
+    accuracy_meters: Optional[float] = Field(None, ge=0.0, description="Location accuracy in meters")
+    include_address: bool = Field(default=True, description="Include reverse geocoded address")
+    include_nearby_pois: bool = Field(default=False, description="Include nearby points of interest")
+    poi_categories: List[POICategory] = Field(default_factory=list, description="POI categories to include")
+    language: LanguageCode = Field(default=LanguageCode.EN, description="Language for address and POI names")
 
 
-class LocationHistory(BaseModel):
-    """Location history for a user."""
+class CurrentLocationResponse(BaseResponse):
+    """Current location response with contextual information."""
 
-    user_id: UUID = Field(description="User identifier")
-    updates: list[LocationUpdate] = Field(description="Location updates")
-    start_time: datetime = Field(description="History start time")
-    end_time: datetime = Field(description="History end time")
-    total_distance_meters: float = Field(ge=0, description="Total distance traveled")
-    average_speed_mps: float = Field(ge=0, description="Average speed")
+    coordinates: Coordinates = Field(description="Current location coordinates")
+    accuracy_meters: Optional[float] = Field(None, description="Location accuracy in meters")
+    address: Optional[Address] = Field(None, description="Reverse geocoded address information")
+    formatted_address: Optional[str] = Field(None, description="Human-readable address")
+    nearby_pois: List[PointOfInterest] = Field(default_factory=list, description="Nearby points of interest")
+    timezone: Optional[str] = Field(None, description="Local timezone identifier")
+    country_code: Optional[str] = Field(None, description="ISO country code")
+    administrative_area: Optional[str] = Field(None, description="State, province, or administrative area")
+    locality: Optional[str] = Field(None, description="City or locality name")
+
+
+class VoiceNavigationRequest(BaseModel):
+    """Voice-guided navigation configuration request."""
+
+    session_id: UUID = Field(description="Navigation session identifier")
+    enable_voice: bool = Field(default=True, description="Enable voice instruction announcements")
+    language: LanguageCode = Field(default=LanguageCode.EN, description="Voice instruction language")
+    voice_speed: float = Field(default=1.0, ge=0.5, le=2.0, description="Voice playback speed multiplier")
+    distance_units: str = Field(default="metric", description="Distance units (metric/imperial)")
+    announce_traffic: bool = Field(default=True, description="Announce traffic alerts and incidents")
+    announce_maneuvers_distance: int = Field(default=100, ge=50, le=500, description="Distance before maneuver to announce (meters)")
+
+
+class VoiceNavigationResponse(BaseResponse):
+    """Voice navigation configuration confirmation."""
+
+    session_id: UUID = Field(description="Navigation session identifier")
+    voice_settings: Dict[str, Any] = Field(description="Applied voice configuration settings")
+    supported_languages: List[str] = Field(description="Available voice instruction languages")
+    current_instruction: Optional[str] = Field(None, description="Current voice instruction if navigation is active")
+
+
+class NavigationSessionRequest(BaseModel):
+    """Navigation session initialization request."""
+
+    route_id: Optional[UUID] = Field(None, description="Pre-calculated route identifier")
+    navigation_request: Optional[NavigationRequest] = Field(None, description="Route calculation parameters")
+    enable_voice_guidance: bool = Field(default=True, description="Enable voice turn-by-turn instructions")
+    voice_language: LanguageCode = Field(default=LanguageCode.EN, description="Voice instruction language")
+    user_id: Optional[UUID] = Field(None, description="User identifier (optional for anonymous sessions)")
+
+    @validator("navigation_request")
+    def validate_route_source(cls, v, values):
+        """Ensure either route_id or navigation_request is provided."""
+        route_id = values.get("route_id")
+        if not route_id and not v:
+            raise ValueError("Either route_id or navigation_request must be provided")
+        if route_id and v:
+            raise ValueError("Provide either route_id or navigation_request, not both")
+        return v
+
+
+class NavigationSessionResponse(BaseResponse):
+    """Navigation session creation confirmation."""
+
+    session_id: UUID = Field(description="Created navigation session identifier")
+    route: RouteInfo = Field(description="Route information for navigation")
+    initial_instruction: Optional[NavigationStep] = Field(None, description="First navigation instruction")
+    estimated_arrival_time: datetime = Field(description="Estimated arrival time at destination")
+    voice_enabled: bool = Field(description="Voice guidance activation status")
+    session_expires_at: datetime = Field(description="Session expiration time")

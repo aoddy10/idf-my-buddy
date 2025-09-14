@@ -104,6 +104,9 @@ dependencies = [
     
     # Geographic & Location Services
     "geopy>=2.4.1",
+    "geoalchemy2>=0.14.0",
+    "shapely>=2.0.0",
+    "overpass>=0.7.0",
     
     # Retry & Resilience
     "tenacity>=8.2.0",
