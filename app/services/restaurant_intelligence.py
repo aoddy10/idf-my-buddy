@@ -249,7 +249,7 @@ class RestaurantIntelligenceService:
             
             for item in menu_items:
                 if item.item_name:
-                    dish_name = " ".join(item.item_name) if isinstance(item.item_name, list) else item.item_name
+                    dish_name = item.item_name
                     authenticity_score = await self._calculate_authenticity_score(
                         dish_name, cuisine_type, ocr_result["extracted_text"]
                     )
