@@ -134,6 +134,64 @@ class VoicePipelineSettings(BaseModel):
     metrics_retention_hours: int = Field(default=24, description="Metrics retention period")
 
 
+class NavigationSettings(BaseModel):
+    """Navigation and location services configuration settings."""
+
+    # Google Maps settings
+    use_google_maps: bool = Field(default=True, description="Use Google Maps API for routing")
+    google_maps_api_key: str | None = Field(default=None, description="Google Maps API key")
+    
+    # OpenStreetMap settings
+    use_openstreetmap: bool = Field(default=True, description="Use OpenStreetMap as fallback")
+    osm_base_url: str = Field(default="https://api.openstreetmap.org", description="OpenStreetMap API base URL")
+    overpass_url: str = Field(default="https://overpass-api.de/api/interpreter", description="Overpass API URL for OSM queries")
+    
+    # Location settings
+    location_accuracy_meters: float = Field(default=10.0, ge=1.0, le=100.0, description="Desired GPS accuracy in meters")
+    location_timeout_seconds: float = Field(default=30.0, ge=5.0, le=120.0, description="Location request timeout")
+    enable_background_location: bool = Field(default=False, description="Enable background location updates")
+    
+    # Points of Interest (POI) settings
+    poi_search_radius_km: float = Field(default=1.0, ge=0.1, le=50.0, description="POI search radius in kilometers")
+    max_poi_results: int = Field(default=20, ge=1, le=100, description="Maximum POI results to return")
+    poi_categories: list[str] = Field(
+        default=["restaurant", "hotel", "gas_station", "atm", "hospital", "pharmacy", "tourist_attraction"],
+        description="Default POI categories to search"
+    )
+    
+    # Routing settings
+    default_travel_mode: Literal["walking", "driving", "bicycling", "transit"] = Field(
+        default="walking", description="Default travel mode for route calculation"
+    )
+    avoid_tolls: bool = Field(default=False, description="Avoid toll roads by default")
+    avoid_highways: bool = Field(default=False, description="Avoid highways by default")
+    avoid_ferries: bool = Field(default=False, description="Avoid ferries by default")
+    
+    # Performance settings
+    route_calculation_timeout: float = Field(default=10.0, ge=2.0, le=30.0, description="Route calculation timeout")
+    max_waypoints: int = Field(default=8, ge=2, le=25, description="Maximum waypoints per route")
+    
+    # Caching settings
+    enable_route_caching: bool = Field(default=True, description="Cache calculated routes")
+    route_cache_ttl_minutes: int = Field(default=30, ge=5, le=1440, description="Route cache TTL in minutes")
+    enable_poi_caching: bool = Field(default=True, description="Cache POI search results")
+    poi_cache_ttl_minutes: int = Field(default=60, ge=10, le=1440, description="POI cache TTL in minutes")
+    
+    # Offline settings
+    enable_offline_maps: bool = Field(default=True, description="Enable offline map functionality")
+    offline_map_storage_mb: int = Field(default=500, ge=100, le=5000, description="Offline map storage limit in MB")
+    
+    # Voice navigation settings
+    enable_voice_navigation: bool = Field(default=True, description="Enable voice-guided navigation")
+    voice_instruction_language: str = Field(default="en", description="Default language for voice instructions")
+    announce_distance_units: Literal["metric", "imperial"] = Field(default="metric", description="Distance units for announcements")
+    
+    # Privacy settings
+    store_location_history: bool = Field(default=False, description="Store user location history")
+    anonymize_location_data: bool = Field(default=True, description="Anonymize location data before storage")
+    location_data_retention_days: int = Field(default=7, ge=1, le=365, description="Location data retention period")
+
+
 class Settings(BaseSettings):
     """Application settings with environment-based configuration."""
 
@@ -217,6 +275,9 @@ class Settings(BaseSettings):
     tts: TTSSettings = Field(default_factory=TTSSettings, description="Text-to-speech settings")
     audio: AudioProcessingSettings = Field(default_factory=AudioProcessingSettings, description="Audio processing settings")
     voice_pipeline: VoicePipelineSettings = Field(default_factory=VoicePipelineSettings, description="Voice pipeline settings")
+    
+    # Navigation Service Configuration
+    navigation: NavigationSettings = Field(default_factory=NavigationSettings, description="Navigation and location services settings")
 
     # Legacy AI Model Configuration (for backward compatibility)
     nllb_model_name: str = Field(

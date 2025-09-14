@@ -2,7 +2,7 @@
 
 Implement a feature using using the PRP file.
 
-## PRP File: voice-services-integration.md
+## PRP File: navigation-services-integration.md
 
 ## Execution Process
 
@@ -40,6 +40,10 @@ Implement a feature using using the PRP file.
     - Read the PRP again to ensure you have implemented everything
 
 6. **Reference the PRP**
+
     - You can always reference the PRP again if needed
+
+7. **Final step**
+    - Update PLANNING.md and TASK.md for complete process.
 
 Note: If validation fails, use error patterns in PRP to fix and retry.

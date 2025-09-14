@@ -275,7 +275,7 @@ class VoicePipeline(LoggerMixin):
                 'balanced': 'base',
                 'high': 'small'
             }
-            model_size = model_size_map.get(quality_level, 'base')
+            model_size_map.get(quality_level, 'base')
 
             # Transcribe audio
             if not exchange.user_audio_data:
