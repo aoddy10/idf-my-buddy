@@ -475,3 +475,271 @@ class OCRService(LoggerMixin):
             self.logger.error(f"Failed to get available languages: {e}")
 
         return list(set(languages)) if languages else ["en"]  # Default to English
+
+    async def process_menu_image(
+        self, 
+        image_data: bytes,
+        language: str = "en",
+        include_bounding_boxes: bool = True,
+        confidence_threshold: float = 0.6
+    ) -> dict[str, Any]:
+        """Process menu image with specialized preprocessing and extraction.
+        
+        This method is optimized for restaurant menus with mixed languages,
+        varied formatting, and potential perspective issues.
+        
+        Args:
+            image_data: Raw image bytes
+            language: Primary language for OCR (e.g., "en", "th", "fr")
+            include_bounding_boxes: Whether to include text position data
+            confidence_threshold: Minimum confidence for text extraction
+            
+        Returns:
+            Menu scan results with structured text extraction
+        """
+        from app.utils.image_preprocessor import MenuImagePreprocessor
+        
+        preprocessor = MenuImagePreprocessor()
+        
+        import time
+        start_time = time.time()
+        
+        try:
+            
+            # Validate image quality first
+            quality_report = preprocessor.validate_image_quality(image_data)
+            if not quality_report.get("resolution_adequate", False):
+                return {
+                    "success": False,
+                    "error": "Image resolution too low for reliable OCR",
+                    "recommendations": quality_report.get("recommendations", []),
+                    "processing_time": time.time() - start_time
+                }
+            
+            # Apply menu-specific preprocessing
+            processed_image_data = preprocessor.preprocess_menu_image(
+                image_data,
+                enhance_contrast=True,
+                correct_perspective=True,
+                reduce_noise=True
+            )
+            
+            # Detect potential mixed languages in menu text
+            languages_to_try = self._get_menu_language_candidates(language)
+            
+            best_result = None
+            highest_confidence = 0.0
+            
+            # Try OCR with different language combinations
+            for lang_combo in languages_to_try:
+                try:
+                    result = await self.extract_text(
+                        processed_image_data,
+                        language=lang_combo,
+                        engine=None,  # Let it choose best available
+                        preprocess=False,  # Already preprocessed
+                        confidence_threshold=confidence_threshold
+                    )
+                    
+                    if result["success"] and result["confidence"] > highest_confidence:
+                        highest_confidence = result["confidence"]
+                        best_result = result
+                        
+                except Exception as e:
+                    self.logger.debug(f"OCR failed for language {lang_combo}: {e}")
+                    continue
+            
+            if not best_result or not best_result["success"]:
+                return {
+                    "success": False,
+                    "error": "OCR failed for all language combinations",
+                    "processing_time": time.time() - start_time
+                }
+            
+            # Post-process menu text for structure
+            menu_structure = self._extract_menu_structure(best_result["text"])
+            
+            # Language detection on extracted text
+            detected_language = self._detect_text_language(best_result["text"])
+            
+            return {
+                "success": True,
+                "extracted_text": best_result["text"],
+                "confidence_score": best_result["confidence"],
+                "detected_language": detected_language,
+                "menu_structure": menu_structure,
+                "bounding_boxes": best_result.get("bounding_boxes", []) if include_bounding_boxes else [],
+                "processing_time": time.time() - start_time,
+                "word_count": best_result.get("word_count", 0),
+                "engine_used": best_result.get("engine", "unknown"),
+                "quality_report": quality_report,
+                "recommendations": self._generate_ocr_recommendations(best_result)
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Menu image processing failed: {e}")
+            import time as time_module
+            try:
+                processing_time = time_module.time() - start_time
+            except NameError:
+                processing_time = 0.0
+            return {
+                "success": False,
+                "error": f"Menu processing failed: {str(e)}",
+                "processing_time": processing_time
+            }
+
+    def _get_menu_language_candidates(self, primary_language: str) -> list[str]:
+        """Get language candidates for menu OCR based on primary language.
+        
+        Many restaurant menus contain mixed languages (local + English),
+        so we try combinations for better accuracy.
+        """
+        # Common language combinations for restaurant menus
+        language_combinations = {
+            "en": ["en"],
+            "th": ["th", "en+th", "en"],
+            "fr": ["fr", "en+fr", "en"], 
+            "es": ["es", "en+es", "en"],
+            "it": ["it", "en+it", "en"],
+            "ja": ["ja", "en+ja", "en"],
+            "ko": ["ko", "en+ko", "en"],
+            "zh": ["ch_sim", "en+ch_sim", "en"],
+            "de": ["de", "en+de", "en"],
+            "pt": ["pt", "en+pt", "en"],
+            "ar": ["ar", "en+ar", "en"],
+        }
+        
+        return language_combinations.get(primary_language, [primary_language, "en"])
+
+    def _extract_menu_structure(self, text: str) -> dict[str, Any]:
+        """Extract structured information from menu text.
+        
+        Attempts to identify menu sections, dishes, prices, and descriptions.
+        """
+        import re
+        
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
+        
+        structure = {
+            "sections": [],
+            "items": [],
+            "prices": [],
+            "total_lines": len(lines)
+        }
+        
+        # Common menu section headers (case insensitive)
+        section_keywords = [
+            r'\b(appetizers?|starters?|apps?)\b',
+            r'\b(mains?|entrees?|main\s+courses?)\b', 
+            r'\b(desserts?|sweets?)\b',
+            r'\b(drinks?|beverages?|cocktails?)\b',
+            r'\b(soups?|salads?)\b',
+            r'\b(specials?|chef\'?s?\s+specials?)\b'
+        ]
+        
+        # Price patterns (various currencies and formats)
+        price_patterns = [
+            r'[\$£€¥₹₽]\s*\d+(?:\.\d{1,2})?',  # $10.50, £15, €20.00, etc.
+            r'\d+(?:\.\d{1,2})?\s*[\$£€¥₹₽]',  # 10.50$, 15£, etc.
+            r'\d+(?:[.,]\d{1,2})?\s*(?:USD|EUR|GBP|THB|CNY)', # 10.50 USD, etc.
+        ]
+        
+        current_section = None
+        
+        for line in lines:
+            # Check for section headers
+            is_section = False
+            for pattern in section_keywords:
+                if re.search(pattern, line, re.IGNORECASE):
+                    current_section = line
+                    structure["sections"].append(line)
+                    is_section = True
+                    break
+            
+            if not is_section:
+                # Extract prices from line
+                line_prices = []
+                for pattern in price_patterns:
+                    matches = re.findall(pattern, line, re.IGNORECASE)
+                    line_prices.extend(matches)
+                
+                if line_prices:
+                    structure["prices"].extend(line_prices)
+                
+                # Add as menu item if it looks like one
+                if len(line.split()) >= 2 and not line.isupper():  # Basic heuristic
+                    structure["items"].append({
+                        "text": line,
+                        "section": current_section,
+                        "prices": line_prices
+                    })
+        
+        return structure
+
+    def _detect_text_language(self, text: str) -> str:
+        """Simple language detection based on character patterns.
+        
+        This is a basic implementation - for production, consider using
+        a dedicated language detection library.
+        """
+        import re
+        
+        if not text:
+            return "unknown"
+        
+        # Simple heuristics based on character sets
+        text_sample = text[:500]  # Use first 500 chars for detection
+        
+        # Count character types
+        latin_chars = len(re.findall(r'[a-zA-Z]', text_sample))
+        thai_chars = len(re.findall(r'[\u0e00-\u0e7f]', text_sample))
+        chinese_chars = len(re.findall(r'[\u4e00-\u9fff]', text_sample))
+        japanese_chars = len(re.findall(r'[\u3040-\u309f\u30a0-\u30ff]', text_sample))
+        korean_chars = len(re.findall(r'[\uac00-\ud7af]', text_sample))
+        arabic_chars = len(re.findall(r'[\u0600-\u06ff]', text_sample))
+        
+        # Simple majority detection
+        char_counts = {
+            "latin": latin_chars,
+            "thai": thai_chars, 
+            "chinese": chinese_chars,
+            "japanese": japanese_chars,
+            "korean": korean_chars,
+            "arabic": arabic_chars
+        }
+        
+        dominant_script = max(char_counts.keys(), key=lambda x: char_counts[x])
+        
+        # Map to language codes
+        script_to_language = {
+            "latin": "en",  # Assume English for Latin script
+            "thai": "th",
+            "chinese": "zh",
+            "japanese": "ja", 
+            "korean": "ko",
+            "arabic": "ar"
+        }
+        
+        return script_to_language.get(dominant_script, "en")
+
+    def _generate_ocr_recommendations(self, ocr_result: dict) -> list[str]:
+        """Generate recommendations for improving OCR accuracy."""
+        recommendations = []
+        
+        confidence = ocr_result.get("confidence", 0.0)
+        word_count = ocr_result.get("word_count", 0)
+        
+        if confidence < 0.7:
+            recommendations.append("Low confidence detected - consider retaking photo with better lighting")
+            
+        if confidence < 0.5:
+            recommendations.append("Very low confidence - ensure menu is clearly visible and in focus")
+            
+        if word_count < 10:
+            recommendations.append("Few words detected - ensure entire menu is visible in photo")
+            
+        if not recommendations:
+            recommendations.append("Good OCR quality - processing successful")
+            
+        return recommendations
