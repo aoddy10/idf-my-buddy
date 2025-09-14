@@ -7,7 +7,7 @@ menu parsing, and dining-related features.
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field, validator
@@ -353,3 +353,243 @@ class ReservationResponse(BaseResponse):
     restaurant_contact: str | None = Field(None, description="Restaurant contact info")
     special_instructions: str | None = Field(None, description="Special instructions")
     cancellation_policy: str | None = Field(None, description="Cancellation policy")
+
+
+# ============================================================================
+# Restaurant Intelligence Schemas (Menu OCR, Allergen Detection, Voice)
+# ============================================================================
+
+class DishCategory(str, Enum):
+    """Menu item categories."""
+    APPETIZER = "appetizer"
+    SOUP = "soup"
+    SALAD = "salad"
+    MAIN_COURSE = "main_course"
+    DESSERT = "dessert"
+    BEVERAGE = "beverage"
+    SNACK = "snack"
+    SPECIAL = "special"
+    UNKNOWN = "unknown"
+
+
+class AllergenType(str, Enum):
+    """Allergen types for detection."""
+    MILK_DAIRY = "milk_dairy"
+    EGGS = "eggs"
+    FISH = "fish"
+    SHELLFISH = "shellfish"
+    TREE_NUTS = "tree_nuts"
+    PEANUTS = "peanuts"
+    WHEAT_GLUTEN = "wheat_gluten"
+    SOYBEANS = "soybeans"
+    SESAME = "sesame"
+    SULFITES = "sulfites"
+    MOLLUSCS = "molluscs"
+    CELERY = "celery"
+    MUSTARD = "mustard"
+    LUPIN = "lupin"
+    OTHER = "other"
+
+
+class AllergenRiskLevel(str, Enum):
+    """Risk levels for allergen warnings."""
+    NONE = "none"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class MenuItemAnalysis(BaseModel):
+    """Analysis result for a single menu item."""
+    item_name: str = Field(description="Name of the menu item")
+    original_text: str = Field(description="Original text from menu")
+    translated_name: str | None = Field(None, description="Translated item name")
+    category: DishCategory = Field(description="Classified dish category")
+    estimated_price: str | None = Field(None, description="Extracted price")
+    price_currency: str | None = Field(None, description="Currency symbol")
+    description: str | None = Field(None, description="Item description")
+    ingredients: list[str] = Field(default_factory=list, description="Identified ingredients")
+    allergen_warnings: list[str] = Field(default_factory=list, description="Allergen warnings")
+    allergen_risk_level: str = Field(default="unknown", description="Risk assessment")
+    dietary_tags: list[str] = Field(default_factory=list, description="Dietary tags")
+    spice_level: str | None = Field(None, description="Spice level indicator")
+    confidence_score: float = Field(ge=0.0, le=1.0, description="Analysis confidence")
+
+
+class MenuAnalysisRequest(BaseModel):
+    """Request for menu image analysis."""
+    user_language: str = Field(default="en", description="User's preferred language")
+    include_allergen_warnings: bool = Field(default=True, description="Include allergen detection")
+    target_currency: str | None = Field(None, description="Target currency for conversion")
+    user_allergens: list[str] | None = Field(None, description="User's known allergies")
+    confidence_threshold: float = Field(default=0.5, ge=0.0, le=1.0, description="OCR confidence threshold")
+
+
+class MenuAnalysisResponse(BaseResponse):
+    """Response from menu image analysis."""
+    restaurant_name: str | None = Field(None, description="Detected restaurant name")
+    cuisine_type: str = Field(description="Detected cuisine type")
+    detected_language: str = Field(description="Menu language detected")
+    currency: str | None = Field(None, description="Currency found in menu")
+    menu_items: list[MenuItemAnalysis] = Field(description="Analyzed menu items")
+    categories_found: list[str] = Field(description="Menu categories discovered")
+    price_range: dict[str, float | None] = Field(description="Price range analysis")
+    allergen_summary: dict[str, int] = Field(description="Allergen occurrence counts")
+    processing_time: float = Field(description="Analysis processing time")
+    confidence_score: float = Field(ge=0.0, le=1.0, description="Overall confidence")
+    recommendations: list[str] = Field(description="Personalized recommendations")
+
+
+class DishExplanationRequest(BaseModel):
+    """Request for dish explanation."""
+    dish_name: str = Field(min_length=1, max_length=200, description="Name of dish to explain")
+    cuisine_type: str | None = Field(None, description="Type of cuisine for context")
+    user_language: str = Field(default="en", description="User's preferred language")
+    include_audio: bool = Field(default=False, description="Generate audio explanation")
+    cultural_context: str | None = Field(None, description="User's cultural background")
+
+
+class DishExplanationResponse(BaseResponse):
+    """Response for dish explanation request."""
+    explanation: str = Field(..., description="Detailed dish explanation")
+    cuisine_type: CuisineType = Field(..., description="Detected cuisine type")
+    confidence: float = Field(..., description="Explanation confidence (0-1)")
+    ingredients: List[str] = Field(default_factory=list, description="Key ingredients")
+    allergen_warnings: List[str] = Field(default_factory=list, description="Allergen warnings")
+    cultural_notes: Optional[str] = Field(None, description="Cultural significance")
+    preparation_tips: List[str] = Field(default_factory=list, description="Preparation advice")
+
+
+class VoiceExplanationRequest(BaseModel):
+    """Request for voice dish explanation."""
+    dish_name: str = Field(..., description="Name of dish to explain")
+    language: LanguageCode = Field(default="en", description="Response language")
+    voice_speed: float = Field(default=1.0, ge=0.5, le=2.0, description="Voice synthesis speed")
+    include_cultural_context: bool = Field(default=True, description="Include cultural information")
+
+
+class VoiceExplanationResponse(BaseResponse):
+    """Response for voice dish explanation."""
+    dish_name: str = Field(..., description="Name of explained dish")
+    text_explanation: str = Field(..., description="Text version of explanation")
+    audio_available: bool = Field(..., description="Whether audio was generated")
+    audio_duration_seconds: Optional[float] = Field(None, description="Audio duration")
+    language: LanguageCode = Field(..., description="Response language")
+    authenticity_score: Optional[float] = Field(None, ge=0.0, le=1.0, description="Dish authenticity score")
+
+
+class VoiceCommandRequest(BaseModel):
+    """Request for voice command processing."""
+    command_language: LanguageCode = Field(default="en", description="Command language")
+    context: Optional[str] = Field(None, description="Additional context")
+
+
+class VoiceCommandResponse(BaseResponse):
+    """Response for voice command processing."""
+    transcribed_text: str = Field(..., description="Transcribed voice command")
+    command_type: str = Field(..., description="Detected command type")
+    parameters: Dict[str, Any] = Field(default_factory=dict, description="Extracted parameters")
+    response_text: str = Field(..., description="Response to command")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Command recognition confidence")
+
+
+class AllergenMatch(BaseModel):
+    """Details of an allergen match."""
+    allergen_type: AllergenType = Field(description="Type of allergen detected")
+    matched_text: str = Field(description="Text that matched allergen pattern")
+    confidence: float = Field(ge=0.0, le=1.0, description="Match confidence score")
+    position: int = Field(ge=0, description="Position in text where found")
+    severity_notes: str | None = Field(None, description="Additional severity information")
+
+
+class AllergenCheckRequest(BaseModel):
+    """Request for allergen checking."""
+    text: str = Field(min_length=1, description="Text to analyze for allergens")
+    language: str = Field(default="en", description="Text language")
+    user_allergens: list[str] | None = Field(None, description="User's specific allergens")
+    confidence_threshold: float = Field(default=0.3, ge=0.0, le=1.0, description="Detection threshold")
+    include_cross_contamination: bool = Field(default=True, description="Check cross-contamination risks")
+
+
+class AllergenCheckResponse(BaseResponse):
+    """Response from allergen analysis."""
+    text_analyzed: str = Field(description="Text that was analyzed")
+    language: str = Field(description="Language of analyzed text")
+    detected_allergens: list[AllergenMatch] = Field(description="Found allergen matches")
+    risk_level: AllergenRiskLevel = Field(description="Overall risk assessment")
+    safety_warnings: list[str] = Field(description="Safety warnings and precautions")
+    user_specific_warnings: list[str] = Field(description="Warnings specific to user")
+    confidence_score: float = Field(ge=0.0, le=1.0, description="Analysis confidence")
+    processing_time: float = Field(description="Detection processing time")
+    recommendations: list[str] = Field(description="Safety recommendations")
+    cross_contamination_risks: list[str] = Field(default_factory=list, description="Cross-contamination warnings")
+
+
+class VoiceMenuRequest(BaseModel):
+    """Request for voice menu assistance."""
+    query: str = Field(min_length=1, description="Voice query or question")
+    language: str = Field(default="en", description="User's language")
+    menu_context: str | None = Field(None, description="Current menu context")
+    user_preferences: dict[str, Any] = Field(default_factory=dict, description="User dining preferences")
+    conversation_history: list[str] = Field(default_factory=list, description="Previous conversation")
+
+
+class VoiceMenuResponse(BaseResponse):
+    """Response from voice menu assistance."""
+    query: str = Field(description="Original user query")
+    response_text: str = Field(description="Text response to query")
+    language: str = Field(description="Response language")
+    audio_available: bool = Field(default=False, description="Whether audio response available")
+    audio_format: str | None = Field(None, description="Audio format")
+    audio_duration: float | None = Field(None, description="Audio duration")
+    suggested_items: list[str] = Field(default_factory=list, description="Suggested menu items")
+    follow_up_questions: list[str] = Field(default_factory=list, description="Suggested follow-up questions")
+    processing_time: float = Field(description="Voice processing time")
+    confidence_score: float = Field(ge=0.0, le=1.0, description="Response confidence")
+
+
+class RestaurantIntelligenceStatus(BaseModel):
+    """Status of restaurant intelligence services."""
+    ocr_available: bool = Field(description="OCR service availability")
+    translation_available: bool = Field(description="Translation service availability")
+    allergen_detection_available: bool = Field(description="Allergen detection availability")
+    tts_available: bool = Field(description="Text-to-speech availability")
+    supported_languages: list[str] = Field(description="Supported languages")
+    supported_cuisines: list[str] = Field(description="Supported cuisine types")
+    max_image_size: int = Field(description="Maximum image size in bytes")
+    processing_statistics: dict[str, Any] = Field(description="Usage statistics")
+
+
+class MenuScanSession(BaseModel):
+    """Menu scanning session information."""
+    session_id: str = Field(description="Unique session identifier")
+    user_id: str = Field(description="User identifier")
+    restaurant_id: str | None = Field(None, description="Restaurant identifier if known")
+    image_url: str = Field(description="Stored menu image URL")
+    status: str = Field(description="Processing status")
+    created_at: datetime = Field(description="Session creation time")
+    results: MenuAnalysisResponse | None = Field(None, description="Analysis results")
+    error_message: str | None = Field(None, description="Error message if failed")
+
+
+class UserAllergenProfile(BaseModel):
+    """User's allergen profile."""
+    user_id: str = Field(description="User identifier")
+    allergens: list[AllergenType] = Field(description="User's allergens")
+    severity_levels: dict[str, AllergenRiskLevel] = Field(description="Severity per allergen")
+    notes: dict[str, str] = Field(default_factory=dict, description="Additional notes per allergen")
+    emergency_contact: str | None = Field(None, description="Emergency contact information")
+    medical_alert: bool = Field(default=False, description="Medical alert requirement")
+    last_updated: datetime = Field(description="Profile last update time")
+
+
+class DiningRecommendation(BaseModel):
+    """Personalized dining recommendation."""
+    item_name: str = Field(description="Recommended menu item")
+    reason: str = Field(description="Why this item is recommended")
+    safety_score: float = Field(ge=0.0, le=1.0, description="Safety score for user")
+    match_score: float = Field(ge=0.0, le=1.0, description="Preference match score")
+    warnings: list[str] = Field(default_factory=list, description="Any warnings or cautions")
+    alternatives: list[str] = Field(default_factory=list, description="Alternative options")
+    cultural_notes: str | None = Field(None, description="Cultural context for item")

@@ -2,7 +2,7 @@
 
 Implement a feature using using the PRP file.
 
-## PRP File: navigation-services-integration.md
+## PRP File: restaurant-intelligence.md
 
 ## Execution Process
 
