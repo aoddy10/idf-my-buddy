@@ -313,7 +313,7 @@ class RestaurantIntelligenceService:
         
         # Basic item analysis
         analysis = MenuItemAnalysis(
-            item_name=item_text.split()[0:3],  # First few words as name
+            item_name=' '.join(item_text.split()[0:3]),  # First few words as name
             original_text=item_text
         )
         
